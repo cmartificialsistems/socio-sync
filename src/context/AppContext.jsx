@@ -82,8 +82,6 @@ export const AppProvider = ({ children }) => {
   });
 
   const [isLocked, setIsLocked] = useState(() => {
-    const pin = localStorage.getItem(`socio_sync_${workspaceId}_pin`) || '';
-    if (!pin) return false;
     const unlocked = sessionStorage.getItem(`socio_sync_${workspaceId}_unlocked`);
     return unlocked !== 'true';
   });
@@ -419,8 +417,15 @@ export const AppProvider = ({ children }) => {
           lastSyncedCloudTs.current = data.ts;
 
           if (data.pin !== undefined) {
-            setWorkspacePinState(data.pin);
-            localStorage.setItem(`socio_sync_${workspaceId}_pin`, data.pin || '');
+            const cloudPin = data.pin || '';
+            setWorkspacePinState(cloudPin);
+            localStorage.setItem(`socio_sync_${workspaceId}_pin`, cloudPin);
+            if (cloudPin) {
+              const unlocked = sessionStorage.getItem(`socio_sync_${workspaceId}_unlocked`);
+              if (unlocked !== 'true') {
+                setIsLocked(true);
+              }
+            }
           }
           if (data.partners && data.partners.length > 0) setPartners(data.partners);
           if (data.dailySchedule) setDailySchedule(data.dailySchedule);
