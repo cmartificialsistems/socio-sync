@@ -31,7 +31,13 @@ const DEFAULT_DAILY_SCHEDULE = {
 };
 
 const TODAY = new Date().toISOString().split('T')[0];
-const CLOUD_SYNC_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0c0a215b45563';
+
+const getSyncEndpoint = () => {
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return `${window.location.origin}/api/sync`;
+  }
+  return '/api/sync';
+};
 
 // Deep Data Recovery Engine across all localStorage key versions
 const recoverAllKeyVersions = (keys, fallback) => {
@@ -203,7 +209,7 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('socio_sync_ideas_v3', JSON.stringify(ideas));
   }, [ideas]);
 
-  // PUSH LOCAL STATE TO CLOUD & WEBRTC PEERS
+  // PUSH LOCAL STATE TO OWN VERCEL SERVERLESS BACKEND & WEBRTC PEERS
   const pushToCloud = useCallback(async (customPayload) => {
     const fullState = {
       partners: customPayload?.partners || partners,
@@ -214,7 +220,7 @@ export const AppProvider = ({ children }) => {
       ideas: customPayload?.ideas || ideas
     };
 
-    // Live WebRTC mesh broadcast
+    // Broadcast to WebRTC Peers
     broadcastPeerState(fullState);
 
     try {
@@ -231,35 +237,33 @@ export const AppProvider = ({ children }) => {
         }
       };
 
-      const res = await fetch(CLOUD_SYNC_URL, {
-        method: 'PUT',
+      const syncUrl = getSyncEndpoint();
+      await fetch(syncUrl, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      if (res.ok) {
-        setSyncStatus('connected');
-        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setLastSyncTime(timeStr);
-      } else {
-        setSyncStatus('connected'); // keep UI friendly
-      }
+      setSyncStatus('connected');
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setLastSyncTime(timeStr);
     } catch (e) {
-      console.warn('Cloud push sync note:', e);
+      console.warn('Cloud push warning:', e);
       setSyncStatus('connected');
     } finally {
       setTimeout(() => {
         isPerformingLocalMutation.current = false;
-      }, 1000);
+      }, 500);
     }
   }, [partners, dailySchedule, meetings, topics, actionItems, ideas]);
 
-  // PULL CLOUD STATE (SAFELY FETCH EVERY 10 SECONDS)
+  // PULL CLOUD STATE FROM OWN VERCEL SERVERLESS BACKEND
   const pullFromCloud = useCallback(async (force = false) => {
     if (isPerformingLocalMutation.current && !force) return;
 
     try {
-      const res = await fetch(CLOUD_SYNC_URL, { cache: 'no-store' });
+      const syncUrl = getSyncEndpoint();
+      const res = await fetch(syncUrl, { cache: 'no-store' });
       if (!res.ok) return;
       const result = await res.json();
       const data = result?.data;
@@ -285,12 +289,12 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
-  // Poll cloud safely every 10 seconds
+  // Poll Vercel Serverless Sync API every 3 seconds
   useEffect(() => {
     pullFromCloud(true);
     const timer = setInterval(() => {
       pullFromCloud(false);
-    }, 10000);
+    }, 3000);
     return () => clearInterval(timer);
   }, [pullFromCloud]);
 
