@@ -7,7 +7,6 @@ import { WorkspaceModal } from './WorkspaceModal';
 export const Header = ({ activeTab, setActiveTab }) => {
   const { 
     workspaceId, 
-    workspacePin,
     lockWorkspace,
     partners, 
     currentUser, 
@@ -54,7 +53,7 @@ export const Header = ({ activeTab, setActiveTab }) => {
                     ) : (
                       <Wifi className="w-2.5 h-2.5 text-[#2E5A44]" />
                     )}
-                    <span>{syncStatus === 'syncing' ? 'Guardando' : 'En Vivo'}</span>
+                    <span className="hidden xs:inline">{syncStatus === 'syncing' ? 'Guardando' : 'En Vivo'}</span>
                   </button>
                 </div>
                 <p className="text-[10px] text-[#6E685F] tracking-wide hidden sm:block font-medium">
@@ -64,37 +63,38 @@ export const Header = ({ activeTab, setActiveTab }) => {
             </div>
 
             {/* Action Buttons: Workspace Switcher, PIN Lock & QR Transfer */}
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1.5">
               
               {/* Workspace Switcher */}
               <button
                 onClick={() => setWorkspaceModalOpen(true)}
-                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all shadow-2xs"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all shadow-2xs"
                 title="Cambiar de sesión o crear nuevo espacio para otro socio"
               >
                 <Layers className="w-3.5 h-3.5 text-[#D95338]" />
-                <span className="capitalize text-xs font-extrabold hidden xs:inline">{workspaceId.replace(/-/g, ' ')}</span>
+                <span className="capitalize text-xs font-extrabold max-w-[80px] sm:max-w-[120px] truncate">
+                  {workspaceId.replace(/-/g, ' ')}
+                </span>
                 <span className="text-[10px] text-[#6E685F]">▾</span>
+              </button>
+
+              {/* QR Mobile Sync Button (PROMINENT ON MOBILE) */}
+              <button
+                onClick={() => setQrModalOpen(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-extrabold shadow-sm transition-all shrink-0"
+                title="Sincronizar o pasar datos al celular vía QR / Enlace"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                <span className="text-xs">QR</span>
               </button>
 
               {/* Lock Screen Button */}
               <button
                 onClick={lockWorkspace}
-                className="p-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#C84B31] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all"
+                className="p-1.5 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#C84B31] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all shrink-0"
                 title="Bloquear pantalla e ir al Login"
               >
                 <Lock className="w-3.5 h-3.5" />
-              </button>
-
-              {/* QR Mobile Sync Button */}
-              <button
-                onClick={() => setQrModalOpen(true)}
-                className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-extrabold shadow-sm transition-all"
-                title="Sincronizar o pasar datos al celular vía QR / Enlace"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline">Pasar a Celular</span>
-                <span className="xs:hidden">QR</span>
               </button>
             </div>
 
