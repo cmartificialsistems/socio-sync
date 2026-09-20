@@ -29,41 +29,70 @@ const DEFAULT_DAILY_SCHEDULE = {
 };
 
 const TODAY = new Date().toISOString().split('T')[0];
-
-// Dedicated high-availability REST Cloud Bin for SocioSync
 const CLOUD_SYNC_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0c0a215b45563';
 
-const loadSavedData = (keyV3, keyV2, keyV1, fallback) => {
-  try {
-    const v3 = localStorage.getItem(keyV3);
-    if (v3 && v3 !== '[]') return JSON.parse(v3);
-    const v2 = localStorage.getItem(keyV2);
-    if (v2 && v2 !== '[]') return JSON.parse(v2);
-    const v1 = localStorage.getItem(keyV1);
-    if (v1 && v1 !== '[]') return JSON.parse(v1);
-  } catch (e) {
-    console.warn('LocalStorage recovery error:', e);
-  }
-  return fallback;
+// Deep Data Recovery Engine across all localStorage key versions
+const recoverAllKeyVersions = (keys, fallback) => {
+  const allItemsMap = new Map();
+  
+  keys.forEach(key => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(item => {
+            if (item && (item.id || item.title)) {
+              const itemKey = item.id || item.title;
+              if (!allItemsMap.has(itemKey)) {
+                allItemsMap.set(itemKey, item);
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Error recovering key:', key, e);
+    }
+  });
+
+  const merged = Array.from(allItemsMap.values());
+  return merged.length > 0 ? merged : fallback;
 };
 
 export const AppProvider = ({ children }) => {
+  // Recover all partners entered in any past version
   const [partners, setPartners] = useState(() => {
-    return loadSavedData('socio_sync_partners_v3', 'socio_sync_partners_v2', 'socio_sync_user', DEFAULT_PARTNERS);
+    const recovered = recoverAllKeyVersions(
+      ['socio_sync_partners_v3', 'socio_sync_partners_v2', 'socio_sync_partners', 'socio_sync_user'],
+      DEFAULT_PARTNERS
+    );
+    return Array.isArray(recovered) && recovered.length >= 2 ? recovered : DEFAULT_PARTNERS;
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = loadSavedData('socio_sync_user_v3', 'socio_sync_user_v2', 'socio_sync_user', null);
-    return saved || partners[0] || DEFAULT_PARTNERS[0];
+    try {
+      const saved = localStorage.getItem('socio_sync_user_v3') || localStorage.getItem('socio_sync_user_v2') || localStorage.getItem('socio_sync_user');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return partners[0] || DEFAULT_PARTNERS[0];
   });
 
   const [dailySchedule, setDailySchedule] = useState(() => {
-    return loadSavedData('socio_sync_schedule_v3', 'socio_sync_schedule_v2', 'socio_sync_schedule', DEFAULT_DAILY_SCHEDULE);
+    try {
+      const saved = localStorage.getItem('socio_sync_schedule_v3') || localStorage.getItem('socio_sync_schedule_v2') || localStorage.getItem('socio_sync_schedule');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return DEFAULT_DAILY_SCHEDULE;
   });
 
+  // Deep recover all meetings, topics, actionItems, and ideas ever entered
   const [meetings, setMeetings] = useState(() => {
-    const saved = loadSavedData('socio_sync_meetings_v3', 'socio_sync_meetings_v2', 'socio_sync_meetings', null);
-    if (saved && saved.length > 0) return saved;
+    const recovered = recoverAllKeyVersions(
+      ['socio_sync_meetings_v3', 'socio_sync_meetings_v2', 'socio_sync_meetings'],
+      null
+    );
+    if (recovered && recovered.length > 0) return recovered;
     return [{
       id: 'meet-initial',
       title: 'Reunión Diaria de Sincronización',
@@ -77,15 +106,24 @@ export const AppProvider = ({ children }) => {
   });
 
   const [topics, setTopics] = useState(() => {
-    return loadSavedData('socio_sync_topics_v3', 'socio_sync_topics_v2', 'socio_sync_topics', []);
+    return recoverAllKeyVersions(
+      ['socio_sync_topics_v3', 'socio_sync_topics_v2', 'socio_sync_topics'],
+      []
+    );
   });
 
   const [actionItems, setActionItems] = useState(() => {
-    return loadSavedData('socio_sync_actions_v3', 'socio_sync_actions_v2', 'socio_sync_actions', []);
+    return recoverAllKeyVersions(
+      ['socio_sync_actions_v3', 'socio_sync_actions_v2', 'socio_sync_actions'],
+      []
+    );
   });
 
   const [ideas, setIdeas] = useState(() => {
-    return loadSavedData('socio_sync_ideas_v3', 'socio_sync_ideas_v2', 'socio_sync_ideas', []);
+    return recoverAllKeyVersions(
+      ['socio_sync_ideas_v3', 'socio_sync_ideas_v2', 'socio_sync_ideas'],
+      []
+    );
   });
 
   const [activeMeetingId, setActiveMeetingId] = useState(() => {
@@ -96,9 +134,10 @@ export const AppProvider = ({ children }) => {
   const [lastSyncTime, setLastSyncTime] = useState('Reciente');
   const lastPushTimestamp = useRef(0);
 
-  // Local Persistence Effects
+  // Sync back all recovered data to current keys
   useEffect(() => {
     localStorage.setItem('socio_sync_partners_v3', JSON.stringify(partners));
+    localStorage.setItem('socio_sync_partners_v2', JSON.stringify(partners));
   }, [partners]);
 
   useEffect(() => {
@@ -111,21 +150,25 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('socio_sync_meetings_v3', JSON.stringify(meetings));
+    localStorage.setItem('socio_sync_meetings_v2', JSON.stringify(meetings));
   }, [meetings]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_topics_v3', JSON.stringify(topics));
+    localStorage.setItem('socio_sync_topics_v2', JSON.stringify(topics));
   }, [topics]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_actions_v3', JSON.stringify(actionItems));
+    localStorage.setItem('socio_sync_actions_v2', JSON.stringify(actionItems));
   }, [actionItems]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_ideas_v3', JSON.stringify(ideas));
+    localStorage.setItem('socio_sync_ideas_v2', JSON.stringify(ideas));
   }, [ideas]);
 
-  // PUSH LOCAL STATE TO HIGH-AVAILABILITY CLOUD REST BIN
+  // PUSH LOCAL RECOVERED STATE TO CLOUD
   const pushToCloud = useCallback(async (customPayload) => {
     try {
       setSyncStatus('syncing');
@@ -160,7 +203,7 @@ export const AppProvider = ({ children }) => {
     }
   }, [partners, dailySchedule, meetings, topics, actionItems, ideas]);
 
-  // PULL CLOUD STATE AUTOMATICALLY
+  // PULL CLOUD STATE
   const pullFromCloud = useCallback(async () => {
     try {
       const res = await fetch(CLOUD_SYNC_URL, { cache: 'no-store' });
