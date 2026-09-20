@@ -34,7 +34,6 @@ const CLOUD_SYNC_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0
 // Deep Data Recovery Engine across all localStorage key versions
 const recoverAllKeyVersions = (keys, fallback) => {
   const allItemsMap = new Map();
-  
   keys.forEach(key => {
     try {
       const raw = localStorage.getItem(key);
@@ -51,28 +50,20 @@ const recoverAllKeyVersions = (keys, fallback) => {
           });
         }
       }
-    } catch (e) {
-      console.warn('Error recovering key:', key, e);
-    }
+    } catch (e) {}
   });
-
   const merged = Array.from(allItemsMap.values());
   return merged.length > 0 ? merged : fallback;
 };
 
 export const AppProvider = ({ children }) => {
-  // Recover all partners entered in any past version
   const [partners, setPartners] = useState(() => {
-    const recovered = recoverAllKeyVersions(
-      ['socio_sync_partners_v3', 'socio_sync_partners_v2', 'socio_sync_partners', 'socio_sync_user'],
-      DEFAULT_PARTNERS
-    );
-    return Array.isArray(recovered) && recovered.length >= 2 ? recovered : DEFAULT_PARTNERS;
+    return recoverAllKeyVersions(['socio_sync_partners_v3', 'socio_sync_partners_v2', 'socio_sync_partners'], DEFAULT_PARTNERS);
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('socio_sync_user_v3') || localStorage.getItem('socio_sync_user_v2') || localStorage.getItem('socio_sync_user');
+      const saved = localStorage.getItem('socio_sync_user_v3') || localStorage.getItem('socio_sync_user_v2');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return partners[0] || DEFAULT_PARTNERS[0];
@@ -80,18 +71,14 @@ export const AppProvider = ({ children }) => {
 
   const [dailySchedule, setDailySchedule] = useState(() => {
     try {
-      const saved = localStorage.getItem('socio_sync_schedule_v3') || localStorage.getItem('socio_sync_schedule_v2') || localStorage.getItem('socio_sync_schedule');
+      const saved = localStorage.getItem('socio_sync_schedule_v3') || localStorage.getItem('socio_sync_schedule_v2');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_DAILY_SCHEDULE;
   });
 
-  // Deep recover all meetings, topics, actionItems, and ideas ever entered
   const [meetings, setMeetings] = useState(() => {
-    const recovered = recoverAllKeyVersions(
-      ['socio_sync_meetings_v3', 'socio_sync_meetings_v2', 'socio_sync_meetings'],
-      null
-    );
+    const recovered = recoverAllKeyVersions(['socio_sync_meetings_v3', 'socio_sync_meetings_v2'], null);
     if (recovered && recovered.length > 0) return recovered;
     return [{
       id: 'meet-initial',
@@ -106,24 +93,15 @@ export const AppProvider = ({ children }) => {
   });
 
   const [topics, setTopics] = useState(() => {
-    return recoverAllKeyVersions(
-      ['socio_sync_topics_v3', 'socio_sync_topics_v2', 'socio_sync_topics'],
-      []
-    );
+    return recoverAllKeyVersions(['socio_sync_topics_v3', 'socio_sync_topics_v2'], []);
   });
 
   const [actionItems, setActionItems] = useState(() => {
-    return recoverAllKeyVersions(
-      ['socio_sync_actions_v3', 'socio_sync_actions_v2', 'socio_sync_actions'],
-      []
-    );
+    return recoverAllKeyVersions(['socio_sync_actions_v3', 'socio_sync_actions_v2'], []);
   });
 
   const [ideas, setIdeas] = useState(() => {
-    return recoverAllKeyVersions(
-      ['socio_sync_ideas_v3', 'socio_sync_ideas_v2', 'socio_sync_ideas'],
-      []
-    );
+    return recoverAllKeyVersions(['socio_sync_ideas_v3', 'socio_sync_ideas_v2'], []);
   });
 
   const [activeMeetingId, setActiveMeetingId] = useState(() => {
@@ -132,12 +110,13 @@ export const AppProvider = ({ children }) => {
 
   const [syncStatus, setSyncStatus] = useState('connected');
   const [lastSyncTime, setLastSyncTime] = useState('Reciente');
-  const lastPushTimestamp = useRef(0);
 
-  // Sync back all recovered data to current keys
+  const lastSyncedCloudTs = useRef(0);
+  const isPerformingLocalMutation = useRef(false);
+
+  // Sync back to local storage
   useEffect(() => {
     localStorage.setItem('socio_sync_partners_v3', JSON.stringify(partners));
-    localStorage.setItem('socio_sync_partners_v2', JSON.stringify(partners));
   }, [partners]);
 
   useEffect(() => {
@@ -150,30 +129,27 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('socio_sync_meetings_v3', JSON.stringify(meetings));
-    localStorage.setItem('socio_sync_meetings_v2', JSON.stringify(meetings));
   }, [meetings]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_topics_v3', JSON.stringify(topics));
-    localStorage.setItem('socio_sync_topics_v2', JSON.stringify(topics));
   }, [topics]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_actions_v3', JSON.stringify(actionItems));
-    localStorage.setItem('socio_sync_actions_v2', JSON.stringify(actionItems));
   }, [actionItems]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_ideas_v3', JSON.stringify(ideas));
-    localStorage.setItem('socio_sync_ideas_v2', JSON.stringify(ideas));
   }, [ideas]);
 
-  // PUSH LOCAL RECOVERED STATE TO CLOUD
+  // PUSH LOCAL STATE TO CLOUD
   const pushToCloud = useCallback(async (customPayload) => {
     try {
       setSyncStatus('syncing');
+      isPerformingLocalMutation.current = true;
       const now = Date.now();
-      lastPushTimestamp.current = now;
+      lastSyncedCloudTs.current = now;
 
       const payload = {
         name: 'socio_sync_workspace_colombia',
@@ -200,46 +176,55 @@ export const AppProvider = ({ children }) => {
     } catch (e) {
       console.warn('Cloud push sync error:', e);
       setSyncStatus('offline');
+    } finally {
+      setTimeout(() => {
+        isPerformingLocalMutation.current = false;
+      }, 1000);
     }
   }, [partners, dailySchedule, meetings, topics, actionItems, ideas]);
 
-  // PULL CLOUD STATE
-  const pullFromCloud = useCallback(async () => {
+  // PULL CLOUD STATE (UNCONDITIONAL PULL IF CLOUD HAS NEWER DATA OR LOCAL IS EMPTY)
+  const pullFromCloud = useCallback(async (force = false) => {
+    if (isPerformingLocalMutation.current && !force) return;
+
     try {
       const res = await fetch(CLOUD_SYNC_URL, { cache: 'no-store' });
       if (!res.ok) return;
       const result = await res.json();
       const data = result?.data;
 
-      if (data && data.ts && data.ts > lastPushTimestamp.current) {
-        lastPushTimestamp.current = data.ts;
+      if (data && data.ts) {
+        // Pull if cloud timestamp is newer OR force pull
+        if (data.ts !== lastSyncedCloudTs.current || force) {
+          lastSyncedCloudTs.current = data.ts;
 
-        if (data.partners && data.partners.length > 0) setPartners(data.partners);
-        if (data.dailySchedule) setDailySchedule(data.dailySchedule);
-        if (data.meetings && data.meetings.length > 0) setMeetings(data.meetings);
-        if (data.topics) setTopics(data.topics);
-        if (data.actionItems) setActionItems(data.actionItems);
-        if (data.ideas) setIdeas(data.ideas);
+          if (data.partners && data.partners.length > 0) setPartners(data.partners);
+          if (data.dailySchedule) setDailySchedule(data.dailySchedule);
+          if (data.meetings && data.meetings.length > 0) setMeetings(data.meetings);
+          if (Array.isArray(data.topics)) setTopics(data.topics);
+          if (Array.isArray(data.actionItems)) setActionItems(data.actionItems);
+          if (Array.isArray(data.ideas)) setIdeas(data.ideas);
 
-        setSyncStatus('connected');
-        const timeStr = new Date(data.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setLastSyncTime(timeStr);
+          setSyncStatus('connected');
+          const timeStr = new Date(data.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setLastSyncTime(timeStr);
+        }
       }
     } catch (e) {
       setSyncStatus('offline');
     }
   }, []);
 
-  // Poll cloud every 2 seconds
+  // Poll cloud every 2 seconds unconditionally
   useEffect(() => {
-    pullFromCloud();
+    pullFromCloud(true); // Initial force pull on mount!
     const timer = setInterval(() => {
-      pullFromCloud();
+      pullFromCloud(false);
     }, 2000);
     return () => clearInterval(timer);
   }, [pullFromCloud]);
 
-  // Actions
+  // User Actions
   const updatePartner = (partnerId, updates) => {
     const updated = partners.map(p => p.id === partnerId ? { ...p, ...updates } : p);
     setPartners(updated);
@@ -475,8 +460,7 @@ export const AppProvider = ({ children }) => {
   };
 
   const manualSyncNow = () => {
-    pushToCloud();
-    pullFromCloud();
+    pullFromCloud(true);
   };
 
   return (
