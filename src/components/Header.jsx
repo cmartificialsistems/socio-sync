@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp, formatTimeFormatted } from '../context/AppContext';
-import { Video, Radio, Compass, CheckSquare, Lightbulb, Settings, Calendar } from 'lucide-react';
+import { Video, Radio, CheckSquare, Lightbulb, Settings, Calendar } from 'lucide-react';
 
 export const Header = ({ activeTab, setActiveTab }) => {
   const { partners, currentUser, switchUser, dailySchedule, meetings, activeMeetingId } = useApp();
@@ -12,10 +12,10 @@ export const Header = ({ activeTab, setActiveTab }) => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20 py-2">
           
-          {/* Brand Logo */}
+          {/* Brand Logo with Vector Emblem */}
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-[#D95338] flex items-center justify-center text-lg shadow-md shadow-[#D95338]/20 border border-[#C84B31]">
-              <Compass className="w-6 h-6 text-white" />
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#E05A47] to-[#B83A28] flex items-center justify-center p-2 shadow-md shadow-[#D95338]/25 border border-[#C84B31]">
+              <img src="/favicon.svg" alt="SocioSync Logo" className="w-7 h-7 object-contain drop-shadow-sm" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -46,7 +46,7 @@ export const Header = ({ activeTab, setActiveTab }) => {
             </div>
 
             <a
-              href={dailySchedule.meetUrl}
+              href={activeMeeting?.meetUrl || dailySchedule.meetUrl}
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#D95338]/20"
