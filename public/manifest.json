@@ -1,0 +1,34 @@
+{
+  "short_name": "SocioSync",
+  "name": "SocioSync • Co-Founder Workspace",
+  "description": "Ecosistema de Agendamiento, Minutas y Compromisos para Socios",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512 192x192 any"
+    },
+    {
+      "src": "/pwa-192x192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "type": "image/png",
+      "sizes": "180x180"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#F5F2EB",
+  "theme_color": "#F5F2EB",
+  "display": "standalone",
+  "orientation": "portrait"
+}
