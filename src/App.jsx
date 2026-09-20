@@ -6,14 +6,14 @@ import { AgendaTopics } from './components/AgendaTopics';
 import { ActionItems } from './components/ActionItems';
 import { IdeasBoard } from './components/IdeasBoard';
 import { SettingsView } from './components/SettingsView';
-import { LockScreen } from './components/LockScreen';
+import { GatewayLogin } from './components/GatewayLogin';
 
 function AppContent() {
   const [activeTab, setActiveTab] = useState('reuniones');
   const { isLocked } = useApp();
 
   if (isLocked) {
-    return <LockScreen />;
+    return <GatewayLogin />;
   }
 
   return (
