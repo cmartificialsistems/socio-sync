@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp, formatTimeFormatted } from '../context/AppContext';
-import { Clock, Video, Plus, Edit3, Flame, Calendar } from 'lucide-react';
+import { Clock, Video, Plus, Edit3, Flame, Calendar, Link } from 'lucide-react';
 
 export const MeetingScheduler = () => {
   const { 
@@ -20,12 +20,14 @@ export const MeetingScheduler = () => {
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [newTime, setNewTime] = useState(dailySchedule.defaultHour);
   const [newNotes, setNewNotes] = useState('');
+  const [newMeetUrl, setNewMeetUrl] = useState(dailySchedule.meetUrl || '');
 
   const [defaultHour, setDefaultHour] = useState(dailySchedule.defaultHour);
   const [durationMinutes, setDurationMinutes] = useState(dailySchedule.durationMinutes);
   const [meetUrl, setMeetUrl] = useState(dailySchedule.meetUrl);
 
   const activeMeeting = meetings.find(m => m.id === activeMeetingId) || meetings[0];
+  const activeVideoUrl = activeMeeting?.meetUrl || dailySchedule.meetUrl;
 
   const handleCreateMeeting = (e) => {
     e.preventDefault();
@@ -34,7 +36,8 @@ export const MeetingScheduler = () => {
       title: newTitle,
       date: newDate,
       time: newTime,
-      notes: newNotes
+      notes: newNotes,
+      meetUrl: newMeetUrl || dailySchedule.meetUrl
     });
     setNewTitle('');
     setNewNotes('');
@@ -119,7 +122,7 @@ export const MeetingScheduler = () => {
           {/* Right Action Controls */}
           <div className="flex flex-col sm:flex-row lg:flex-col gap-3 shrink-0">
             <a
-              href={dailySchedule.meetUrl}
+              href={activeVideoUrl}
               target="_blank"
               rel="noreferrer"
               className="flex items-center justify-center gap-2 px-6 py-3.5 bg-[#D95338] hover:bg-[#C84B31] text-white font-display font-extrabold text-sm rounded-2xl shadow-xl shadow-[#D95338]/25 transition-all active:scale-95"
@@ -133,7 +136,7 @@ export const MeetingScheduler = () => {
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#F5F2EB] hover:bg-[#EFEAE1] text-[#524E48] hover:text-[#1C1B1A] border border-[#E6E0D4] rounded-2xl text-xs font-bold transition-all"
             >
               <Edit3 className="w-3.5 h-3.5" />
-              <span>Configurar Horario Base</span>
+              <span>Configurar Horario Base & Link</span>
             </button>
           </div>
 
@@ -193,11 +196,11 @@ export const MeetingScheduler = () => {
         </div>
       </div>
 
-      {/* Edit Base Schedule Modal */}
+      {/* Edit Base Schedule & Link Modal */}
       {showEditScheduleModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-[#E6E0D4] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <h3 className="font-display text-lg font-bold text-[#1C1B1A]">Configurar Horario Diario Base</h3>
+            <h3 className="font-display text-lg font-bold text-[#1C1B1A]">Configurar Horario Base & Enlace de Reunión</h3>
             
             <form onSubmit={handleUpdateSchedule} className="space-y-4">
               <div>
@@ -221,11 +224,12 @@ export const MeetingScheduler = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#6E685F] mb-1">Enlace de Videollamada (Meet/Zoom)</label>
+                <label className="block text-xs font-semibold text-[#6E685F] mb-1">Enlace de Videollamada (Google Meet / Zoom / Teams)</label>
                 <input
                   type="url"
                   value={meetUrl}
                   onChange={(e) => setMeetUrl(e.target.value)}
+                  placeholder="https://meet.google.com/abc-defg-hij"
                   className="w-full bg-[#F5F2EB] border border-[#E6E0D4] rounded-xl px-3.5 py-2 text-xs text-[#1C1B1A]"
                 />
               </div>
@@ -288,6 +292,17 @@ export const MeetingScheduler = () => {
                     className="w-full bg-[#F5F2EB] border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#6E685F] mb-1">Enlace de Videollamada (opcional)</label>
+                <input
+                  type="url"
+                  value={newMeetUrl}
+                  onChange={(e) => setNewMeetUrl(e.target.value)}
+                  placeholder="https://meet.google.com/..."
+                  className="w-full bg-[#F5F2EB] border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
+                />
               </div>
 
               <div>

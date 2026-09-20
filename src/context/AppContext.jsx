@@ -56,7 +56,8 @@ export const AppProvider = ({ children }) => {
       time: '10:00',
       duration: 45,
       status: 'Programada',
-      notes: 'Bienvenido a SocioSync. Agrega aquí los puntos a tratar para la sesión de hoy.'
+      notes: 'Bienvenido a SocioSync. Agrega aquí los puntos a tratar para la sesión de hoy.',
+      meetUrl: DEFAULT_DAILY_SCHEDULE.meetUrl
     }];
   });
 
@@ -125,8 +126,12 @@ export const AppProvider = ({ children }) => {
 
   const updateSchedule = (newSchedule) => {
     setDailySchedule(prev => ({ ...prev, ...newSchedule }));
-    if (newSchedule.defaultHour) {
-      setMeetings(prev => prev.map(m => m.id === activeMeetingId ? { ...m, time: newSchedule.defaultHour } : m));
+    if (newSchedule.defaultHour || newSchedule.meetUrl) {
+      setMeetings(prev => prev.map(m => m.id === activeMeetingId ? { 
+        ...m, 
+        time: newSchedule.defaultHour || m.time,
+        meetUrl: newSchedule.meetUrl || m.meetUrl
+      } : m));
     }
   };
 
@@ -154,7 +159,8 @@ export const AppProvider = ({ children }) => {
       time: newMeeting.time || dailySchedule.defaultHour,
       duration: parseInt(newMeeting.duration) || dailySchedule.durationMinutes,
       status: 'Programada',
-      notes: newMeeting.notes || ''
+      notes: newMeeting.notes || '',
+      meetUrl: newMeeting.meetUrl || dailySchedule.meetUrl
     };
     setMeetings(prev => [meeting, ...prev]);
     setActiveMeetingId(meeting.id);
@@ -299,7 +305,8 @@ export const AppProvider = ({ children }) => {
       time: dailySchedule.defaultHour,
       duration: 45,
       status: 'Programada',
-      notes: 'Agrega tus propios temas y compromisos.'
+      notes: 'Agrega tus propios temas y compromisos.',
+      meetUrl: dailySchedule.meetUrl
     }]);
     setTopics([]);
     setActionItems([]);
