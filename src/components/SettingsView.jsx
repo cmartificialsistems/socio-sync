@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Settings, RefreshCw, Download, Clock, Video, Users, Check, UserCheck, Share2, Globe, Github } from 'lucide-react';
+import { Settings, RefreshCw, Download, Clock, Video, Check, UserCheck } from 'lucide-react';
 
 export const SettingsView = () => {
   const { 
@@ -229,22 +229,6 @@ export const SettingsView = () => {
             )}
           </div>
         </form>
-      </div>
-
-      {/* Deployment & Live Sync Section */}
-      <div className="bg-[#FAF8F5] rounded-3xl border border-[#D95338]/30 p-6 shadow-sm space-y-3">
-        <div className="flex items-center gap-2 text-[#D95338] font-display font-extrabold text-sm">
-          <Globe className="w-5 h-5" />
-          <span>¿Cómo poner la app EN VIVO para compartirla con tu socio?</span>
-        </div>
-        <p className="text-xs text-[#524E48] leading-relaxed">
-          Para que tú y tu socio accedan desde cualquier lugar (teléfono o computadora):
-        </p>
-        <ol className="list-decimal list-inside text-xs text-[#524E48] space-y-1.5 font-medium">
-          <li>Sube esta carpeta a **GitHub** (hemos preparado los comandos en la terminal).</li>
-          <li>Conecta tu cuenta de GitHub con **Vercel** o **Netlify** (son gratuitas en 1 clic).</li>
-          <li>¡Listo! Tendrás un enlace del tipo <code className="bg-white px-2 py-0.5 rounded border text-[#D95338]">https://tu-socio-sync.vercel.app</code> para ambos.</li>
-        </ol>
       </div>
 
       {/* Backup & Clear Data */}

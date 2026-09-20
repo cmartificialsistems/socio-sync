@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
-import { Clock, Video, Plus, Edit3, Flame, Calendar, Sparkles } from 'lucide-react';
+import { useApp, formatTimeFormatted } from '../context/AppContext';
+import { Clock, Video, Plus, Edit3, Flame, Calendar } from 'lucide-react';
 
 export const MeetingScheduler = () => {
   const { 
@@ -57,7 +57,7 @@ export const MeetingScheduler = () => {
       {/* Studio White Paper Hero Card */}
       <div className="relative bg-white border border-[#E6E0D4] rounded-3xl p-6 md:p-8 shadow-[0_10px_40px_rgba(0,0,0,0.03)] overflow-hidden">
         
-        {/* Subtle warm glow background */}
+        {/* Glow */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-[#D95338]/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 relative z-10">
@@ -88,7 +88,9 @@ export const MeetingScheduler = () => {
               <div className="flex items-center gap-2 bg-[#F5F2EB] px-4 py-2 rounded-2xl border border-[#E6E0D4]">
                 <Clock className="w-4 h-4 text-[#D95338]" />
                 <span className="text-xs text-[#6E685F]">Hora programada:</span>
-                <span className="font-display font-extrabold text-sm text-[#1C1B1A]">{activeMeeting?.time} AM</span>
+                <span className="font-display font-extrabold text-sm text-[#1C1B1A]">
+                  {formatTimeFormatted(activeMeeting?.time)}
+                </span>
                 <span className="text-[10px] text-[#6E685F]">({activeMeeting?.duration} min)</span>
               </div>
 
@@ -183,7 +185,7 @@ export const MeetingScheduler = () => {
                 <h4 className="font-display text-xs font-extrabold text-[#1C1B1A] truncate mb-1">{m.title}</h4>
                 <p className="text-[11px] text-[#6E685F] flex items-center gap-1 font-mono">
                   <Clock className="w-3 h-3 text-[#D95338]" />
-                  <span>{m.time} AM</span>
+                  <span>{formatTimeFormatted(m.time)}</span>
                 </p>
               </button>
             );

@@ -2,6 +2,19 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AppContext = createContext();
 
+export const formatTimeFormatted = (timeStr) => {
+  if (!timeStr) return '';
+  if (timeStr.includes('AM') || timeStr.includes('PM')) return timeStr;
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${hours}:${minutes} ${ampm}`;
+};
+
 const DEFAULT_PARTNERS = [
   { id: 'socio_1', name: 'Socio 1 (Tú)', role: 'Co-Fundador', avatar: '🦁', color: '#D95338' },
   { id: 'socio_2', name: 'Socio 2 (Tu Socio)', role: 'Co-Fundador', avatar: '⚡', color: '#2E5A44' }
@@ -18,7 +31,6 @@ const DEFAULT_DAILY_SCHEDULE = {
 const TODAY = new Date().toISOString().split('T')[0];
 
 export const AppProvider = ({ children }) => {
-  // Partners configuration (Editable by user)
   const [partners, setPartners] = useState(() => {
     const saved = localStorage.getItem('socio_sync_partners_v2');
     return saved ? JSON.parse(saved) : DEFAULT_PARTNERS;
@@ -34,11 +46,9 @@ export const AppProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : DEFAULT_DAILY_SCHEDULE;
   });
 
-  // Clean empty initial data (No mock data!)
   const [meetings, setMeetings] = useState(() => {
     const saved = localStorage.getItem('socio_sync_meetings_v2');
     if (saved) return JSON.parse(saved);
-    // Initial single clean meeting for today
     return [{
       id: 'meet-initial',
       title: 'Reunión Diaria de Sincronización',
@@ -98,7 +108,6 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('socio_sync_ideas_v2', JSON.stringify(ideas));
   }, [ideas]);
 
-  // Actions: Partners Setup
   const updatePartner = (partnerId, updates) => {
     setPartners(prev => {
       const updated = prev.map(p => p.id === partnerId ? { ...p, ...updates } : p);
@@ -116,12 +125,17 @@ export const AppProvider = ({ children }) => {
 
   const updateSchedule = (newSchedule) => {
     setDailySchedule(prev => ({ ...prev, ...newSchedule }));
+    if (newSchedule.defaultHour) {
+      setMeetings(prev => prev.map(m => m.id === activeMeetingId ? { ...m, time: newSchedule.defaultHour } : m));
+    }
   };
 
   const shiftMeetingTime = (meetingId, minutesDelta) => {
     setMeetings(prev => prev.map(m => {
       if (m.id === meetingId) {
-        const [h, min] = m.time.split(':').map(Number);
+        let [h, min] = m.time.split(':').map(Number);
+        if (isNaN(h)) h = 10;
+        if (isNaN(min)) min = 0;
         const date = new Date();
         date.setHours(h, min + minutesDelta);
         const newH = String(date.getHours()).padStart(2, '0');
