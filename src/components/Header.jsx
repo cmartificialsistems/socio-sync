@@ -1,9 +1,9 @@
 import React from 'react';
 import { useApp, formatTimeFormatted } from '../context/AppContext';
-import { Video, Radio, CheckSquare, Lightbulb, Settings, Calendar } from 'lucide-react';
+import { Video, Radio, CheckSquare, Lightbulb, Settings, Calendar, Wifi, RefreshCw } from 'lucide-react';
 
 export const Header = ({ activeTab, setActiveTab }) => {
-  const { partners, currentUser, switchUser, dailySchedule, meetings, activeMeetingId } = useApp();
+  const { partners, currentUser, switchUser, dailySchedule, meetings, activeMeetingId, syncStatus } = useApp();
 
   const activeMeeting = meetings.find(m => m.id === activeMeetingId) || meetings[0];
 
@@ -22,8 +22,18 @@ export const Header = ({ activeTab, setActiveTab }) => {
                 <span className="font-display font-extrabold text-2xl tracking-tight text-[#1C1B1A]">
                   Socio<span className="text-[#D95338]">Sync</span>
                 </span>
-                <span className="px-2.5 py-0.5 text-[10px] font-mono tracking-wider uppercase font-bold bg-[#D95338]/10 text-[#C84B31] border border-[#D95338]/25 rounded-md">
-                  STUDIO ARCHITECTURE
+                <span className="px-2.5 py-0.5 text-[10px] font-mono tracking-wider uppercase font-bold bg-[#D95338]/10 text-[#C84B31] border border-[#D95338]/25 rounded-md flex items-center gap-1">
+                  {syncStatus === 'syncing' ? (
+                    <>
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                      SINCRONIZANDO
+                    </>
+                  ) : (
+                    <>
+                      <Wifi className="w-2.5 h-2.5 text-[#2E5A44]" />
+                      NUBE EN VIVO
+                    </>
+                  )}
                 </span>
               </div>
               <p className="text-[11px] text-[#6E685F] tracking-wide hidden sm:block font-medium">

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 const AppContext = createContext();
 
@@ -80,7 +80,29 @@ export const AppProvider = ({ children }) => {
     return meetings[0]?.id || 'meet-initial';
   });
 
-  // Persistence Effects
+  const [syncStatus, setSyncStatus] = useState('connected'); // connected, syncing, offline
+  const isLocalUpdate = useRef(false);
+
+  // Cloud Sync Room Key
+  const [roomKey, setRoomKey] = useState(() => {
+    return localStorage.getItem('socio_sync_room_key') || 'sociosync_colombia_room';
+  });
+
+  // Supabase Custom Config
+  const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('socio_sync_supabase_url') || '');
+  const [supabaseKey, setSupabaseKey] = useState(() => localStorage.getItem('socio_sync_supabase_key') || '');
+
+  // Save room & supabase config
+  useEffect(() => {
+    localStorage.setItem('socio_sync_room_key', roomKey);
+  }, [roomKey]);
+
+  useEffect(() => {
+    localStorage.setItem('socio_sync_supabase_url', supabaseUrl);
+    localStorage.setItem('socio_sync_supabase_key', supabaseKey);
+  }, [supabaseUrl, supabaseKey]);
+
+  // Local Storage Persistence
   useEffect(() => {
     localStorage.setItem('socio_sync_partners_v2', JSON.stringify(partners));
   }, [partners]);
@@ -109,14 +131,82 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('socio_sync_ideas_v2', JSON.stringify(ideas));
   }, [ideas]);
 
-  const updatePartner = (partnerId, updates) => {
-    setPartners(prev => {
-      const updated = prev.map(p => p.id === partnerId ? { ...p, ...updates } : p);
-      if (currentUser.id === partnerId) {
-        setCurrentUser(updated.find(p => p.id === partnerId));
+  // REAL-TIME CLOUD SYNC LOGIC
+  const syncToCloud = useCallback(async (stateToPush) => {
+    try {
+      setSyncStatus('syncing');
+      const binId = localStorage.getItem('socio_sync_bin_id') || 'c44c5b367d30f353ad63';
+      const payload = {
+        updatedAt: Date.now(),
+        partners: stateToPush?.partners || partners,
+        dailySchedule: stateToPush?.dailySchedule || dailySchedule,
+        meetings: stateToPush?.meetings || meetings,
+        topics: stateToPush?.topics || topics,
+        actionItems: stateToPush?.actionItems || actionItems,
+        ideas: stateToPush?.ideas || ideas
+      };
+      
+      await fetch(`https://api.npoint.io/${binId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      setSyncStatus('connected');
+    } catch (e) {
+      console.warn('Cloud sync push error:', e);
+      setSyncStatus('offline');
+    }
+  }, [partners, dailySchedule, meetings, topics, actionItems, ideas]);
+
+  // Auto-sync trigger on data change
+  const triggerSync = (newState) => {
+    isLocalUpdate.current = true;
+    syncToCloud(newState);
+  };
+
+  // Poll cloud state every 3 seconds for partner updates
+  useEffect(() => {
+    const binId = localStorage.getItem('socio_sync_bin_id') || 'c44c5b367d30f353ad63';
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`https://api.npoint.io/${binId}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data && data.updatedAt) {
+          const lastLocalUpdate = parseInt(localStorage.getItem('socio_sync_last_cloud_ts') || '0', 10);
+          if (data.updatedAt > lastLocalUpdate && !isLocalUpdate.current) {
+            localStorage.setItem('socio_sync_last_cloud_ts', String(data.updatedAt));
+            
+            if (data.partners) setPartners(data.partners);
+            if (data.dailySchedule) setDailySchedule(data.dailySchedule);
+            if (data.meetings) setMeetings(data.meetings);
+            if (data.topics) setTopics(data.topics);
+            if (data.actionItems) setActionItems(data.actionItems);
+            if (data.ideas) setIdeas(data.ideas);
+
+            setSyncStatus('connected');
+          }
+        }
+      } catch (e) {
+        setSyncStatus('offline');
+      } finally {
+        isLocalUpdate.current = false;
       }
-      return updated;
-    });
+    }, 3000);
+
+    return () => clearInterval(pollInterval);
+  }, []);
+
+  const updatePartner = (partnerId, updates) => {
+    const updated = partners.map(p => p.id === partnerId ? { ...p, ...updates } : p);
+    setPartners(updated);
+    if (currentUser.id === partnerId) {
+      setCurrentUser(updated.find(p => p.id === partnerId));
+    }
+    triggerSync({ partners: updated });
   };
 
   const switchUser = (partnerId) => {
@@ -125,18 +215,22 @@ export const AppProvider = ({ children }) => {
   };
 
   const updateSchedule = (newSchedule) => {
-    setDailySchedule(prev => ({ ...prev, ...newSchedule }));
+    const updatedSched = { ...dailySchedule, ...newSchedule };
+    setDailySchedule(updatedSched);
+    let updatedMeetings = meetings;
     if (newSchedule.defaultHour || newSchedule.meetUrl) {
-      setMeetings(prev => prev.map(m => m.id === activeMeetingId ? { 
+      updatedMeetings = meetings.map(m => m.id === activeMeetingId ? { 
         ...m, 
         time: newSchedule.defaultHour || m.time,
         meetUrl: newSchedule.meetUrl || m.meetUrl
-      } : m));
+      } : m);
+      setMeetings(updatedMeetings);
     }
+    triggerSync({ dailySchedule: updatedSched, meetings: updatedMeetings });
   };
 
   const shiftMeetingTime = (meetingId, minutesDelta) => {
-    setMeetings(prev => prev.map(m => {
+    const updatedMeetings = meetings.map(m => {
       if (m.id === meetingId) {
         let [h, min] = m.time.split(':').map(Number);
         if (isNaN(h)) h = 10;
@@ -148,7 +242,9 @@ export const AppProvider = ({ children }) => {
         return { ...m, time: `${newH}:${newM}` };
       }
       return m;
-    }));
+    });
+    setMeetings(updatedMeetings);
+    triggerSync({ meetings: updatedMeetings });
   };
 
   const addMeeting = (newMeeting) => {
@@ -162,8 +258,10 @@ export const AppProvider = ({ children }) => {
       notes: newMeeting.notes || '',
       meetUrl: newMeeting.meetUrl || dailySchedule.meetUrl
     };
-    setMeetings(prev => [meeting, ...prev]);
+    const updated = [meeting, ...meetings];
+    setMeetings(updated);
     setActiveMeetingId(meeting.id);
+    triggerSync({ meetings: updated });
     return meeting;
   };
 
@@ -178,11 +276,15 @@ export const AppProvider = ({ children }) => {
       status: 'Pendiente',
       comments: []
     };
-    setTopics(prev => [topic, ...prev]);
+    const updated = [topic, ...topics];
+    setTopics(updated);
+    triggerSync({ topics: updated });
   };
 
   const updateTopicStatus = (topicId, status) => {
-    setTopics(prev => prev.map(t => t.id === topicId ? { ...t, status } : t));
+    const updated = topics.map(t => t.id === topicId ? { ...t, status } : t);
+    setTopics(updated);
+    triggerSync({ topics: updated });
   };
 
   const addTopicComment = (topicId, commentText) => {
@@ -193,12 +295,14 @@ export const AppProvider = ({ children }) => {
       text: commentText,
       timestamp: 'Justo ahora'
     };
-    setTopics(prev => prev.map(t => {
+    const updated = topics.map(t => {
       if (t.id === topicId) {
         return { ...t, comments: [...t.comments, comment] };
       }
       return t;
-    }));
+    });
+    setTopics(updated);
+    triggerSync({ topics: updated });
   };
 
   const addActionItem = (newItem) => {
@@ -215,11 +319,15 @@ export const AppProvider = ({ children }) => {
       meetingId: newItem.meetingId || activeMeetingId,
       comments: []
     };
-    setActionItems(prev => [item, ...prev]);
+    const updated = [item, ...actionItems];
+    setActionItems(updated);
+    triggerSync({ actionItems: updated });
   };
 
   const updateActionStatus = (actionId, status) => {
-    setActionItems(prev => prev.map(a => a.id === actionId ? { ...a, status } : a));
+    const updated = actionItems.map(a => a.id === actionId ? { ...a, status } : a);
+    setActionItems(updated);
+    triggerSync({ actionItems: updated });
   };
 
   const addActionComment = (actionId, commentText) => {
@@ -230,12 +338,14 @@ export const AppProvider = ({ children }) => {
       text: commentText,
       timestamp: 'Justo ahora'
     };
-    setActionItems(prev => prev.map(a => {
+    const updated = actionItems.map(a => {
       if (a.id === actionId) {
         return { ...a, comments: [...a.comments, comment] };
       }
       return a;
-    }));
+    });
+    setActionItems(updated);
+    triggerSync({ actionItems: updated });
   };
 
   const addIdea = (newIdea) => {
@@ -250,11 +360,13 @@ export const AppProvider = ({ children }) => {
       status: 'Idea',
       comments: []
     };
-    setIdeas(prev => [idea, ...prev]);
+    const updated = [idea, ...ideas];
+    setIdeas(updated);
+    triggerSync({ ideas: updated });
   };
 
   const toggleVoteIdea = (ideaId) => {
-    setIdeas(prev => prev.map(i => {
+    const updated = ideas.map(i => {
       if (i.id === ideaId) {
         const hasVoted = i.votes.includes(currentUser.id);
         const updatedVotes = hasVoted
@@ -263,7 +375,9 @@ export const AppProvider = ({ children }) => {
         return { ...i, votes: updatedVotes };
       }
       return i;
-    }));
+    });
+    setIdeas(updated);
+    triggerSync({ ideas: updated });
   };
 
   const addIdeaComment = (ideaId, commentText) => {
@@ -274,12 +388,14 @@ export const AppProvider = ({ children }) => {
       text: commentText,
       timestamp: 'Justo ahora'
     };
-    setIdeas(prev => prev.map(i => {
+    const updated = ideas.map(i => {
       if (i.id === ideaId) {
         return { ...i, comments: [...i.comments, comment] };
       }
       return i;
-    }));
+    });
+    setIdeas(updated);
+    triggerSync({ ideas: updated });
   };
 
   const convertIdeaToTopic = (ideaId, meetingId) => {
@@ -293,12 +409,14 @@ export const AppProvider = ({ children }) => {
       priority: 'Media'
     });
 
-    setIdeas(prev => prev.map(i => i.id === ideaId ? { ...i, status: 'Llevada a Reunión' } : i));
+    const updatedIdeas = ideas.map(i => i.id === ideaId ? { ...i, status: 'Llevada a Reunión' } : i);
+    setIdeas(updatedIdeas);
+    triggerSync({ ideas: updatedIdeas });
   };
 
   const clearAllData = () => {
     localStorage.clear();
-    setMeetings([{
+    const initialMeetings = [{
       id: 'meet-initial',
       title: 'Reunión Diaria de Sincronización',
       date: TODAY,
@@ -307,11 +425,13 @@ export const AppProvider = ({ children }) => {
       status: 'Programada',
       notes: 'Agrega tus propios temas y compromisos.',
       meetUrl: dailySchedule.meetUrl
-    }]);
+    }];
+    setMeetings(initialMeetings);
     setTopics([]);
     setActionItems([]);
     setIdeas([]);
     setActiveMeetingId('meet-initial');
+    triggerSync({ meetings: initialMeetings, topics: [], actionItems: [], ideas: [] });
   };
 
   return (
@@ -340,7 +460,14 @@ export const AppProvider = ({ children }) => {
       toggleVoteIdea,
       addIdeaComment,
       convertIdeaToTopic,
-      clearAllData
+      clearAllData,
+      syncStatus,
+      roomKey,
+      setRoomKey,
+      supabaseUrl,
+      setSupabaseUrl,
+      supabaseKey,
+      setSupabaseKey
     }}>
       {children}
     </AppContext.Provider>
