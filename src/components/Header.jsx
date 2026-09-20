@@ -64,12 +64,12 @@ export const Header = ({ activeTab, setActiveTab }) => {
             </div>
 
             {/* Action Buttons: Workspace Switcher, PIN Lock & QR Transfer */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               
               {/* Workspace Switcher */}
               <button
                 onClick={() => setWorkspaceModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all shadow-2xs"
+                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all shadow-2xs"
                 title="Cambiar de sesión o crear nuevo espacio para otro socio"
               >
                 <Layers className="w-3.5 h-3.5 text-[#D95338]" />
@@ -77,26 +77,24 @@ export const Header = ({ activeTab, setActiveTab }) => {
                 <span className="text-[10px] text-[#6E685F]">▾</span>
               </button>
 
-              {/* Lock Screen Button (if PIN set) */}
-              {workspacePin && (
-                <button
-                  onClick={lockWorkspace}
-                  className="p-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#C84B31] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all"
-                  title="Bloquear pantalla con PIN"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                </button>
-              )}
+              {/* Lock Screen Button */}
+              <button
+                onClick={lockWorkspace}
+                className="p-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#C84B31] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all"
+                title="Bloquear pantalla e ir al Login"
+              >
+                <Lock className="w-3.5 h-3.5" />
+              </button>
 
               {/* QR Mobile Sync Button */}
               <button
                 onClick={() => setQrModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-extrabold shadow-sm transition-all"
+                className="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-extrabold shadow-sm transition-all"
                 title="Sincronizar o pasar datos al celular vía QR / Enlace"
               >
                 <QrCode className="w-3.5 h-3.5" />
                 <span className="hidden xs:inline">Pasar a Celular</span>
-                <span className="xs:hidden">QR Celular</span>
+                <span className="xs:hidden">QR</span>
               </button>
             </div>
 
@@ -180,8 +178,8 @@ export const Header = ({ activeTab, setActiveTab }) => {
             })}
           </div>
 
-          {/* Tab Bar (Scrollable on Mobile) */}
-          <div className="flex space-x-1.5 border-t border-[#E6E0D4] pt-1.5 overflow-x-auto no-scrollbar">
+          {/* Perfect Mobile Responsive 4-Column Tab Bar */}
+          <div className="grid grid-cols-4 gap-1 sm:flex sm:space-x-1.5 border-t border-[#E6E0D4] pt-1.5 w-full">
             {[
               { id: 'reuniones', label: 'Reuniones', icon: Calendar },
               { id: 'tareas', label: 'Compromisos', icon: CheckSquare },
@@ -194,14 +192,14 @@ export const Header = ({ activeTab, setActiveTab }) => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all w-full text-center truncate ${
                     isActive
                       ? 'bg-[#D95338]/10 text-[#C84B31] border border-[#D95338]/30 shadow-xs'
                       : 'text-[#6E685F] hover:text-[#1C1B1A] hover:bg-[#F0EBE1]'
                   }`}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#D95338]' : ''}`} />
-                  <span>{tab.label}</span>
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-[#D95338]' : ''}`} />
+                  <span className="truncate">{tab.label}</span>
                 </button>
               );
             })}
