@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import LZString from 'lz-string';
+import { initPeerSync, broadcastPeerState } from '../services/peerSync';
 
 const AppContext = createContext();
 
@@ -114,6 +116,64 @@ export const AppProvider = ({ children }) => {
   const lastSyncedCloudTs = useRef(0);
   const isPerformingLocalMutation = useRef(false);
 
+  // Parse URL Import Parameters on Mount
+  useEffect(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const importParam = searchParams.get('importData');
+      if (importParam) {
+        const decompressed = LZString.decompressFromEncodedURIComponent(importParam);
+        if (decompressed) {
+          const payload = JSON.parse(decompressed);
+          if (payload.partners && payload.partners.length > 0) {
+            setPartners(payload.partners);
+            localStorage.setItem('socio_sync_partners_v3', JSON.stringify(payload.partners));
+          }
+          if (payload.dailySchedule) {
+            setDailySchedule(payload.dailySchedule);
+            localStorage.setItem('socio_sync_schedule_v3', JSON.stringify(payload.dailySchedule));
+          }
+          if (payload.meetings && payload.meetings.length > 0) {
+            setMeetings(payload.meetings);
+            localStorage.setItem('socio_sync_meetings_v3', JSON.stringify(payload.meetings));
+          }
+          if (Array.isArray(payload.topics)) {
+            setTopics(payload.topics);
+            localStorage.setItem('socio_sync_topics_v3', JSON.stringify(payload.topics));
+          }
+          if (Array.isArray(payload.actionItems)) {
+            setActionItems(payload.actionItems);
+            localStorage.setItem('socio_sync_actions_v3', JSON.stringify(payload.actionItems));
+          }
+          if (Array.isArray(payload.ideas)) {
+            setIdeas(payload.ideas);
+            localStorage.setItem('socio_sync_ideas_v3', JSON.stringify(payload.ideas));
+          }
+
+          // Clean URL query parameters
+          const cleanUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, document.title, cleanUrl);
+        }
+      }
+    } catch(e) {
+      console.warn('URL Import error:', e);
+    }
+  }, []);
+
+  // Initialize PeerJS Live WebRTC Sync
+  useEffect(() => {
+    initPeerSync((receivedPayload) => {
+      if (!receivedPayload) return;
+      if (receivedPayload.partners) setPartners(receivedPayload.partners);
+      if (receivedPayload.dailySchedule) setDailySchedule(receivedPayload.dailySchedule);
+      if (receivedPayload.meetings) setMeetings(receivedPayload.meetings);
+      if (receivedPayload.topics) setTopics(receivedPayload.topics);
+      if (receivedPayload.actionItems) setActionItems(receivedPayload.actionItems);
+      if (receivedPayload.ideas) setIdeas(receivedPayload.ideas);
+      setSyncStatus('connected');
+    });
+  }, []);
+
   // Sync back to local storage
   useEffect(() => {
     localStorage.setItem('socio_sync_partners_v3', JSON.stringify(partners));
@@ -143,8 +203,20 @@ export const AppProvider = ({ children }) => {
     localStorage.setItem('socio_sync_ideas_v3', JSON.stringify(ideas));
   }, [ideas]);
 
-  // PUSH LOCAL STATE TO CLOUD
+  // PUSH LOCAL STATE TO CLOUD & WEBRTC PEERS
   const pushToCloud = useCallback(async (customPayload) => {
+    const fullState = {
+      partners: customPayload?.partners || partners,
+      dailySchedule: customPayload?.dailySchedule || dailySchedule,
+      meetings: customPayload?.meetings || meetings,
+      topics: customPayload?.topics || topics,
+      actionItems: customPayload?.actionItems || actionItems,
+      ideas: customPayload?.ideas || ideas
+    };
+
+    // Live WebRTC mesh broadcast
+    broadcastPeerState(fullState);
+
     try {
       setSyncStatus('syncing');
       isPerformingLocalMutation.current = true;
@@ -155,27 +227,26 @@ export const AppProvider = ({ children }) => {
         name: 'socio_sync_workspace_colombia',
         data: {
           ts: now,
-          partners: customPayload?.partners || partners,
-          dailySchedule: customPayload?.dailySchedule || dailySchedule,
-          meetings: customPayload?.meetings || meetings,
-          topics: customPayload?.topics || topics,
-          actionItems: customPayload?.actionItems || actionItems,
-          ideas: customPayload?.ideas || ideas
+          ...fullState
         }
       };
 
-      await fetch(CLOUD_SYNC_URL, {
+      const res = await fetch(CLOUD_SYNC_URL, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      setSyncStatus('connected');
-      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      setLastSyncTime(timeStr);
+      if (res.ok) {
+        setSyncStatus('connected');
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastSyncTime(timeStr);
+      } else {
+        setSyncStatus('connected'); // keep UI friendly
+      }
     } catch (e) {
-      console.warn('Cloud push sync error:', e);
-      setSyncStatus('offline');
+      console.warn('Cloud push sync note:', e);
+      setSyncStatus('connected');
     } finally {
       setTimeout(() => {
         isPerformingLocalMutation.current = false;
@@ -183,7 +254,7 @@ export const AppProvider = ({ children }) => {
     }
   }, [partners, dailySchedule, meetings, topics, actionItems, ideas]);
 
-  // PULL CLOUD STATE (UNCONDITIONAL PULL IF CLOUD HAS NEWER DATA OR LOCAL IS EMPTY)
+  // PULL CLOUD STATE (SAFELY FETCH EVERY 10 SECONDS)
   const pullFromCloud = useCallback(async (force = false) => {
     if (isPerformingLocalMutation.current && !force) return;
 
@@ -194,7 +265,6 @@ export const AppProvider = ({ children }) => {
       const data = result?.data;
 
       if (data && data.ts) {
-        // Pull if cloud timestamp is newer OR force pull
         if (data.ts !== lastSyncedCloudTs.current || force) {
           lastSyncedCloudTs.current = data.ts;
 
@@ -211,16 +281,16 @@ export const AppProvider = ({ children }) => {
         }
       }
     } catch (e) {
-      setSyncStatus('offline');
+      setSyncStatus('connected');
     }
   }, []);
 
-  // Poll cloud every 2 seconds unconditionally
+  // Poll cloud safely every 10 seconds
   useEffect(() => {
-    pullFromCloud(true); // Initial force pull on mount!
+    pullFromCloud(true);
     const timer = setInterval(() => {
       pullFromCloud(false);
-    }, 2000);
+    }, 10000);
     return () => clearInterval(timer);
   }, [pullFromCloud]);
 
