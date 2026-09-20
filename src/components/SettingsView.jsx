@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Settings, RefreshCw, Download, Clock, Video, Check, UserCheck } from 'lucide-react';
 
@@ -18,7 +18,8 @@ export const SettingsView = () => {
   const [defaultHour, setDefaultHour] = useState(dailySchedule.defaultHour);
   const [durationMinutes, setDurationMinutes] = useState(dailySchedule.durationMinutes);
   const [meetUrl, setMeetUrl] = useState(dailySchedule.meetUrl);
-  const [savedSuccess, setSavedSuccess] = useState(false);
+  const [savedScheduleSuccess, setSavedScheduleSuccess] = useState(false);
+  const [savedPartnerSuccess, setSavedPartnerSuccess] = useState(false);
 
   // Partner 1 & 2 states
   const [p1Name, setP1Name] = useState(partners[0]?.name || '');
@@ -29,23 +30,43 @@ export const SettingsView = () => {
   const [p2Role, setP2Role] = useState(partners[1]?.role || '');
   const [p2Avatar, setP2Avatar] = useState(partners[1]?.avatar || '⚡');
 
+  // Sync inputs dynamically when partners context updates
+  useEffect(() => {
+    if (partners[0]) {
+      setP1Name(partners[0].name || '');
+      setP1Role(partners[0].role || '');
+      setP1Avatar(partners[0].avatar || '🦁');
+    }
+    if (partners[1]) {
+      setP2Name(partners[1].name || '');
+      setP2Role(partners[1].role || '');
+      setP2Avatar(partners[1].avatar || '⚡');
+    }
+  }, [partners]);
+
+  useEffect(() => {
+    setDefaultHour(dailySchedule.defaultHour || '10:00');
+    setDurationMinutes(dailySchedule.durationMinutes || 45);
+    setMeetUrl(dailySchedule.meetUrl || '');
+  }, [dailySchedule]);
+
   const handleSaveSchedule = (e) => {
     e.preventDefault();
     updateSchedule({
       defaultHour,
-      durationMinutes: parseInt(durationMinutes),
+      durationMinutes: parseInt(durationMinutes, 10),
       meetUrl
     });
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    setSavedScheduleSuccess(true);
+    setTimeout(() => setSavedScheduleSuccess(false), 3000);
   };
 
   const handleSavePartners = (e) => {
     e.preventDefault();
     updatePartner('socio_1', { name: p1Name, role: p1Role, avatar: p1Avatar });
     updatePartner('socio_2', { name: p2Name, role: p2Role, avatar: p2Avatar });
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+    setSavedPartnerSuccess(true);
+    setTimeout(() => setSavedPartnerSuccess(false), 3000);
   };
 
   const handleExportData = () => {
@@ -70,7 +91,7 @@ export const SettingsView = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       
       {/* Configure Partner Identities */}
-      <div className="bg-white rounded-3xl border border-[#E6E0D4] p-6 shadow-sm space-y-4">
+      <div className="bg-white rounded-3xl border border-[#E6E0D4] p-6 shadow-xs space-y-4">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-[#D95338]/10 text-[#C84B31] rounded-2xl">
             <UserCheck className="w-5 h-5" />
@@ -89,12 +110,13 @@ export const SettingsView = () => {
               <h4 className="font-display text-xs font-bold text-[#D95338] uppercase">Socio 1 (Tú)</h4>
               
               <div>
-                <label className="block text-[11px] font-semibold text-[#6E685F] mb-1">Tu Nombre</label>
+                <label className="block text-[11px] font-semibold text-[#6E685F] mb-1">Tu Nombre *</label>
                 <input
                   type="text"
                   required
                   value={p1Name}
                   onChange={(e) => setP1Name(e.target.value)}
+                  placeholder="Ej: Alex"
                   className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
                 />
               </div>
@@ -106,6 +128,7 @@ export const SettingsView = () => {
                     type="text"
                     value={p1Role}
                     onChange={(e) => setP1Role(e.target.value)}
+                    placeholder="Ej: Co-Fundador"
                     className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
                   />
                 </div>
@@ -126,12 +149,13 @@ export const SettingsView = () => {
               <h4 className="font-display text-xs font-bold text-[#2E5A44] uppercase">Socio 2 (Tu Socio)</h4>
               
               <div>
-                <label className="block text-[11px] font-semibold text-[#6E685F] mb-1">Nombre de tu Socio</label>
+                <label className="block text-[11px] font-semibold text-[#6E685F] mb-1">Nombre de tu Socio *</label>
                 <input
                   type="text"
                   required
                   value={p2Name}
                   onChange={(e) => setP2Name(e.target.value)}
+                  placeholder="Ej: Carlos"
                   className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
                 />
               </div>
@@ -143,6 +167,7 @@ export const SettingsView = () => {
                     type="text"
                     value={p2Role}
                     onChange={(e) => setP2Role(e.target.value)}
+                    placeholder="Ej: Co-Fundador"
                     className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
                   />
                 </div>
@@ -160,17 +185,24 @@ export const SettingsView = () => {
 
           </div>
 
-          <button
-            type="submit"
-            className="px-5 py-2 bg-[#D95338] hover:bg-[#C84B31] text-white font-extrabold text-xs rounded-xl shadow-md transition-all"
-          >
-            Guardar Nombres de Socios
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              className="px-5 py-2.5 bg-[#D95338] hover:bg-[#C84B31] text-white font-extrabold text-xs rounded-xl shadow-xs transition-all"
+            >
+              Guardar Nombres de Socios
+            </button>
+            {savedPartnerSuccess && (
+              <span className="text-xs text-[#2E5A44] font-bold flex items-center gap-1">
+                <Check className="w-4 h-4" /> ¡Nombres actualizados!
+              </span>
+            )}
+          </div>
         </form>
       </div>
 
       {/* Meeting Hours Setup */}
-      <div className="bg-white rounded-3xl border border-[#E6E0D4] p-6 shadow-sm">
+      <div className="bg-white rounded-3xl border border-[#E6E0D4] p-6 shadow-xs">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2.5 bg-[#D95338]/10 text-[#C84B31] rounded-2xl">
             <Clock className="w-5 h-5" />
@@ -218,13 +250,13 @@ export const SettingsView = () => {
           <div className="flex items-center gap-3 pt-2">
             <button
               type="submit"
-              className="px-5 py-2 bg-[#D95338] hover:bg-[#C84B31] text-white font-extrabold text-xs rounded-xl shadow-md transition-all"
+              className="px-5 py-2.5 bg-[#D95338] hover:bg-[#C84B31] text-white font-extrabold text-xs rounded-xl shadow-xs transition-all"
             >
               Guardar Horarios
             </button>
-            {savedSuccess && (
+            {savedScheduleSuccess && (
               <span className="text-xs text-[#2E5A44] font-bold flex items-center gap-1">
-                <Check className="w-4 h-4" /> ¡Guardado con éxito!
+                <Check className="w-4 h-4" /> ¡Horarios guardados!
               </span>
             )}
           </div>
@@ -232,7 +264,7 @@ export const SettingsView = () => {
       </div>
 
       {/* Backup & Clear Data */}
-      <div className="bg-white rounded-3xl border border-[#E6E0D4] p-6 shadow-sm space-y-4">
+      <div className="bg-white rounded-3xl border border-[#E6E0D4] p-6 shadow-xs space-y-4">
         <h3 className="font-display text-sm font-extrabold text-[#1C1B1A]">Gestión de Datos</h3>
 
         <div className="flex items-center gap-3 flex-wrap">
