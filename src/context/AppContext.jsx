@@ -391,7 +391,7 @@ export const AppProvider = ({ children }) => {
       });
 
       setSyncStatus('connected');
-      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const timeStr = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLastSyncTime(timeStr);
     } catch (e) {
       console.warn('Cloud push warning:', e);
@@ -430,7 +430,7 @@ export const AppProvider = ({ children }) => {
           if (Array.isArray(data.ideas)) setIdeas(data.ideas);
 
           setSyncStatus('connected');
-          const timeStr = new Date(data.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const timeStr = new Date(data.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
           setLastSyncTime(timeStr);
         }
       }

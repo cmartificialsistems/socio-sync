@@ -15,6 +15,7 @@ export const Header = ({ activeTab, setActiveTab }) => {
     meetings, 
     activeMeetingId, 
     syncStatus, 
+    lastSyncTime,
     manualSyncNow 
   } = useApp();
   
@@ -45,15 +46,15 @@ export const Header = ({ activeTab, setActiveTab }) => {
                   {/* Sync Badge */}
                   <button 
                     onClick={manualSyncNow}
-                    className="px-2 py-0.5 text-[9px] sm:text-[10px] font-mono tracking-wider uppercase font-bold bg-[#D95338]/10 text-[#C84B31] border border-[#D95338]/25 rounded-md flex items-center gap-1"
-                    title="Toca para forzar sincronización instantánea"
+                    className="px-2 py-0.5 text-[9px] sm:text-[10px] font-mono tracking-wider font-bold bg-[#2E5A44]/10 text-[#2E5A44] border border-[#2E5A44]/25 rounded-md flex items-center gap-1"
+                    title={`Sincronización activa. Última actualización: ${lastSyncTime}. Toca para forzar refresco.`}
                   >
                     {syncStatus === 'syncing' ? (
-                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin text-[#D95338]" />
                     ) : (
                       <Wifi className="w-2.5 h-2.5 text-[#2E5A44]" />
                     )}
-                    <span className="hidden xs:inline">{syncStatus === 'syncing' ? 'Guardando' : 'En Vivo'}</span>
+                    <span>{syncStatus === 'syncing' ? 'Guardando' : `Servidor: ${lastSyncTime}`}</span>
                   </button>
                 </div>
                 <p className="text-[10px] text-[#6E685F] tracking-wide hidden sm:block font-medium">
