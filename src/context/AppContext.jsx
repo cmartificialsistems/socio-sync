@@ -30,24 +30,27 @@ const DEFAULT_DAILY_SCHEDULE = {
 
 const TODAY = new Date().toISOString().split('T')[0];
 
+// Dedicated cloud endpoint for this workspace
+const CLOUD_SYNC_URL = 'https://api.npoint.io/c44c5b367d30f353ad63';
+
 export const AppProvider = ({ children }) => {
   const [partners, setPartners] = useState(() => {
-    const saved = localStorage.getItem('socio_sync_partners_v2');
+    const saved = localStorage.getItem('socio_sync_partners_v3');
     return saved ? JSON.parse(saved) : DEFAULT_PARTNERS;
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('socio_sync_user_v2');
+    const saved = localStorage.getItem('socio_sync_user_v3');
     return saved ? JSON.parse(saved) : partners[0];
   });
 
   const [dailySchedule, setDailySchedule] = useState(() => {
-    const saved = localStorage.getItem('socio_sync_schedule_v2');
+    const saved = localStorage.getItem('socio_sync_schedule_v3');
     return saved ? JSON.parse(saved) : DEFAULT_DAILY_SCHEDULE;
   });
 
   const [meetings, setMeetings] = useState(() => {
-    const saved = localStorage.getItem('socio_sync_meetings_v2');
+    const saved = localStorage.getItem('socio_sync_meetings_v3');
     if (saved) return JSON.parse(saved);
     return [{
       id: 'meet-initial',
@@ -56,157 +59,136 @@ export const AppProvider = ({ children }) => {
       time: '10:00',
       duration: 45,
       status: 'Programada',
-      notes: 'Bienvenido a SocioSync. Agrega aquí los puntos a tratar para la sesión de hoy.',
+      notes: 'Bienvenido a SocioSync. Agrega aquí tus puntos a tratar y compromisos.',
       meetUrl: DEFAULT_DAILY_SCHEDULE.meetUrl
     }];
   });
 
   const [topics, setTopics] = useState(() => {
-    const saved = localStorage.getItem('socio_sync_topics_v2');
+    const saved = localStorage.getItem('socio_sync_topics_v3');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [actionItems, setActionItems] = useState(() => {
-    const saved = localStorage.getItem('socio_sync_actions_v2');
+    const saved = localStorage.getItem('socio_sync_actions_v3');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [ideas, setIdeas] = useState(() => {
-    const saved = localStorage.getItem('socio_sync_ideas_v2');
+    const saved = localStorage.getItem('socio_sync_ideas_v3');
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [activeMeetingId, setActiveMeetingId] = useState(() => {
-    return meetings[0]?.id || 'meet-initial';
-  });
-
+  const [activeMeetingId, setActiveMeetingId] = useState('meet-initial');
   const [syncStatus, setSyncStatus] = useState('connected'); // connected, syncing, offline
-  const isLocalUpdate = useRef(false);
+  const [lastSyncTime, setLastSyncTime] = useState('Reciente');
 
-  // Cloud Sync Room Key
-  const [roomKey, setRoomKey] = useState(() => {
-    return localStorage.getItem('socio_sync_room_key') || 'sociosync_colombia_room';
-  });
+  const lastPushTimestamp = useRef(0);
 
-  // Supabase Custom Config
-  const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('socio_sync_supabase_url') || '');
-  const [supabaseKey, setSupabaseKey] = useState(() => localStorage.getItem('socio_sync_supabase_key') || '');
-
-  // Save room & supabase config
+  // Local Storage Save
   useEffect(() => {
-    localStorage.setItem('socio_sync_room_key', roomKey);
-  }, [roomKey]);
-
-  useEffect(() => {
-    localStorage.setItem('socio_sync_supabase_url', supabaseUrl);
-    localStorage.setItem('socio_sync_supabase_key', supabaseKey);
-  }, [supabaseUrl, supabaseKey]);
-
-  // Local Storage Persistence
-  useEffect(() => {
-    localStorage.setItem('socio_sync_partners_v2', JSON.stringify(partners));
+    localStorage.setItem('socio_sync_partners_v3', JSON.stringify(partners));
   }, [partners]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_user_v2', JSON.stringify(currentUser));
+    localStorage.setItem('socio_sync_user_v3', JSON.stringify(currentUser));
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_schedule_v2', JSON.stringify(dailySchedule));
+    localStorage.setItem('socio_sync_schedule_v3', JSON.stringify(dailySchedule));
   }, [dailySchedule]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_meetings_v2', JSON.stringify(meetings));
+    localStorage.setItem('socio_sync_meetings_v3', JSON.stringify(meetings));
   }, [meetings]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_topics_v2', JSON.stringify(topics));
+    localStorage.setItem('socio_sync_topics_v3', JSON.stringify(topics));
   }, [topics]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_actions_v2', JSON.stringify(actionItems));
+    localStorage.setItem('socio_sync_actions_v3', JSON.stringify(actionItems));
   }, [actionItems]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_ideas_v2', JSON.stringify(ideas));
+    localStorage.setItem('socio_sync_ideas_v3', JSON.stringify(ideas));
   }, [ideas]);
 
-  // REAL-TIME CLOUD SYNC LOGIC
-  const syncToCloud = useCallback(async (stateToPush) => {
+  // PUSH LOCAL STATE TO CLOUD
+  const pushToCloud = useCallback(async (customPayload) => {
     try {
       setSyncStatus('syncing');
-      const binId = localStorage.getItem('socio_sync_bin_id') || 'c44c5b367d30f353ad63';
+      const now = Date.now();
+      lastPushTimestamp.current = now;
+
       const payload = {
-        updatedAt: Date.now(),
-        partners: stateToPush?.partners || partners,
-        dailySchedule: stateToPush?.dailySchedule || dailySchedule,
-        meetings: stateToPush?.meetings || meetings,
-        topics: stateToPush?.topics || topics,
-        actionItems: stateToPush?.actionItems || actionItems,
-        ideas: stateToPush?.ideas || ideas
+        ts: now,
+        partners: customPayload?.partners || partners,
+        dailySchedule: customPayload?.dailySchedule || dailySchedule,
+        meetings: customPayload?.meetings || meetings,
+        topics: customPayload?.topics || topics,
+        actionItems: customPayload?.actionItems || actionItems,
+        ideas: customPayload?.ideas || ideas
       };
-      
-      await fetch(`https://api.npoint.io/${binId}`, {
+
+      await fetch(CLOUD_SYNC_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
       setSyncStatus('connected');
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setLastSyncTime(timeStr);
     } catch (e) {
-      console.warn('Cloud sync push error:', e);
+      console.warn('Cloud sync error:', e);
       setSyncStatus('offline');
     }
   }, [partners, dailySchedule, meetings, topics, actionItems, ideas]);
 
-  // Auto-sync trigger on data change
-  const triggerSync = (newState) => {
-    isLocalUpdate.current = true;
-    syncToCloud(newState);
-  };
+  // PULL CLOUD STATE AUTOMATICALLY
+  const pullFromCloud = useCallback(async () => {
+    try {
+      const res = await fetch(CLOUD_SYNC_URL, { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
 
-  // Poll cloud state every 3 seconds for partner updates
-  useEffect(() => {
-    const binId = localStorage.getItem('socio_sync_bin_id') || 'c44c5b367d30f353ad63';
-    
-    const pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`https://api.npoint.io/${binId}`, { cache: 'no-store' });
-        if (!res.ok) return;
-        const data = await res.json();
-        
-        if (data && data.updatedAt) {
-          const lastLocalUpdate = parseInt(localStorage.getItem('socio_sync_last_cloud_ts') || '0', 10);
-          if (data.updatedAt > lastLocalUpdate && !isLocalUpdate.current) {
-            localStorage.setItem('socio_sync_last_cloud_ts', String(data.updatedAt));
-            
-            if (data.partners) setPartners(data.partners);
-            if (data.dailySchedule) setDailySchedule(data.dailySchedule);
-            if (data.meetings) setMeetings(data.meetings);
-            if (data.topics) setTopics(data.topics);
-            if (data.actionItems) setActionItems(data.actionItems);
-            if (data.ideas) setIdeas(data.ideas);
+      if (data && data.ts && data.ts > lastPushTimestamp.current) {
+        lastPushTimestamp.current = data.ts;
 
-            setSyncStatus('connected');
-          }
-        }
-      } catch (e) {
-        setSyncStatus('offline');
-      } finally {
-        isLocalUpdate.current = false;
+        if (data.partners) setPartners(data.partners);
+        if (data.dailySchedule) setDailySchedule(data.dailySchedule);
+        if (data.meetings) setMeetings(data.meetings);
+        if (data.topics) setTopics(data.topics);
+        if (data.actionItems) setActionItems(data.actionItems);
+        if (data.ideas) setIdeas(data.ideas);
+
+        setSyncStatus('connected');
+        const timeStr = new Date(data.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setLastSyncTime(timeStr);
       }
-    }, 3000);
-
-    return () => clearInterval(pollInterval);
+    } catch (e) {
+      setSyncStatus('offline');
+    }
   }, []);
 
+  // Poll cloud every 2 seconds
+  useEffect(() => {
+    pullFromCloud(); // Initial pull
+    const timer = setInterval(() => {
+      pullFromCloud();
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [pullFromCloud]);
+
+  // Actions
   const updatePartner = (partnerId, updates) => {
     const updated = partners.map(p => p.id === partnerId ? { ...p, ...updates } : p);
     setPartners(updated);
     if (currentUser.id === partnerId) {
       setCurrentUser(updated.find(p => p.id === partnerId));
     }
-    triggerSync({ partners: updated });
+    pushToCloud({ partners: updated });
   };
 
   const switchUser = (partnerId) => {
@@ -226,7 +208,7 @@ export const AppProvider = ({ children }) => {
       } : m);
       setMeetings(updatedMeetings);
     }
-    triggerSync({ dailySchedule: updatedSched, meetings: updatedMeetings });
+    pushToCloud({ dailySchedule: updatedSched, meetings: updatedMeetings });
   };
 
   const shiftMeetingTime = (meetingId, minutesDelta) => {
@@ -244,7 +226,7 @@ export const AppProvider = ({ children }) => {
       return m;
     });
     setMeetings(updatedMeetings);
-    triggerSync({ meetings: updatedMeetings });
+    pushToCloud({ meetings: updatedMeetings });
   };
 
   const addMeeting = (newMeeting) => {
@@ -261,7 +243,7 @@ export const AppProvider = ({ children }) => {
     const updated = [meeting, ...meetings];
     setMeetings(updated);
     setActiveMeetingId(meeting.id);
-    triggerSync({ meetings: updated });
+    pushToCloud({ meetings: updated });
     return meeting;
   };
 
@@ -278,13 +260,13 @@ export const AppProvider = ({ children }) => {
     };
     const updated = [topic, ...topics];
     setTopics(updated);
-    triggerSync({ topics: updated });
+    pushToCloud({ topics: updated });
   };
 
   const updateTopicStatus = (topicId, status) => {
     const updated = topics.map(t => t.id === topicId ? { ...t, status } : t);
     setTopics(updated);
-    triggerSync({ topics: updated });
+    pushToCloud({ topics: updated });
   };
 
   const addTopicComment = (topicId, commentText) => {
@@ -302,7 +284,7 @@ export const AppProvider = ({ children }) => {
       return t;
     });
     setTopics(updated);
-    triggerSync({ topics: updated });
+    pushToCloud({ topics: updated });
   };
 
   const addActionItem = (newItem) => {
@@ -321,13 +303,13 @@ export const AppProvider = ({ children }) => {
     };
     const updated = [item, ...actionItems];
     setActionItems(updated);
-    triggerSync({ actionItems: updated });
+    pushToCloud({ actionItems: updated });
   };
 
   const updateActionStatus = (actionId, status) => {
     const updated = actionItems.map(a => a.id === actionId ? { ...a, status } : a);
     setActionItems(updated);
-    triggerSync({ actionItems: updated });
+    pushToCloud({ actionItems: updated });
   };
 
   const addActionComment = (actionId, commentText) => {
@@ -345,7 +327,7 @@ export const AppProvider = ({ children }) => {
       return a;
     });
     setActionItems(updated);
-    triggerSync({ actionItems: updated });
+    pushToCloud({ actionItems: updated });
   };
 
   const addIdea = (newIdea) => {
@@ -362,7 +344,7 @@ export const AppProvider = ({ children }) => {
     };
     const updated = [idea, ...ideas];
     setIdeas(updated);
-    triggerSync({ ideas: updated });
+    pushToCloud({ ideas: updated });
   };
 
   const toggleVoteIdea = (ideaId) => {
@@ -377,7 +359,7 @@ export const AppProvider = ({ children }) => {
       return i;
     });
     setIdeas(updated);
-    triggerSync({ ideas: updated });
+    pushToCloud({ ideas: updated });
   };
 
   const addIdeaComment = (ideaId, commentText) => {
@@ -395,7 +377,7 @@ export const AppProvider = ({ children }) => {
       return i;
     });
     setIdeas(updated);
-    triggerSync({ ideas: updated });
+    pushToCloud({ ideas: updated });
   };
 
   const convertIdeaToTopic = (ideaId, meetingId) => {
@@ -411,7 +393,7 @@ export const AppProvider = ({ children }) => {
 
     const updatedIdeas = ideas.map(i => i.id === ideaId ? { ...i, status: 'Llevada a Reunión' } : i);
     setIdeas(updatedIdeas);
-    triggerSync({ ideas: updatedIdeas });
+    pushToCloud({ ideas: updatedIdeas });
   };
 
   const clearAllData = () => {
@@ -431,7 +413,12 @@ export const AppProvider = ({ children }) => {
     setActionItems([]);
     setIdeas([]);
     setActiveMeetingId('meet-initial');
-    triggerSync({ meetings: initialMeetings, topics: [], actionItems: [], ideas: [] });
+    pushToCloud({ meetings: initialMeetings, topics: [], actionItems: [], ideas: [] });
+  };
+
+  const manualSyncNow = () => {
+    pushToCloud();
+    pullFromCloud();
   };
 
   return (
@@ -462,12 +449,8 @@ export const AppProvider = ({ children }) => {
       convertIdeaToTopic,
       clearAllData,
       syncStatus,
-      roomKey,
-      setRoomKey,
-      supabaseUrl,
-      setSupabaseUrl,
-      supabaseKey,
-      setSupabaseKey
+      lastSyncTime,
+      manualSyncNow
     }}>
       {children}
     </AppContext.Provider>
