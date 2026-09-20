@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { Settings, RefreshCw, Download, Clock, Video, Check, UserCheck } from 'lucide-react';
+import { Settings, RefreshCw, Download, Clock, Video, Check, UserCheck, Lock, Shield, KeyRound, Unlock } from 'lucide-react';
 
 export const SettingsView = () => {
   const { 
+    workspaceId,
     dailySchedule, 
     updateSchedule, 
     clearAllData, 
@@ -12,7 +13,10 @@ export const SettingsView = () => {
     meetings, 
     topics, 
     actionItems, 
-    ideas 
+    ideas,
+    workspacePin,
+    updateWorkspacePin,
+    lockWorkspace
   } = useApp();
 
   const [defaultHour, setDefaultHour] = useState(dailySchedule.defaultHour);
@@ -20,6 +24,10 @@ export const SettingsView = () => {
   const [meetUrl, setMeetUrl] = useState(dailySchedule.meetUrl);
   const [savedScheduleSuccess, setSavedScheduleSuccess] = useState(false);
   const [savedPartnerSuccess, setSavedPartnerSuccess] = useState(false);
+  const [savedPinSuccess, setSavedPinSuccess] = useState(false);
+
+  // Security PIN state
+  const [pinInput, setPinInput] = useState(workspacePin || '');
 
   // Track if user is actively typing in partner form
   const [isDirtyPartners, setIsDirtyPartners] = useState(false);
@@ -55,6 +63,10 @@ export const SettingsView = () => {
     setMeetUrl(dailySchedule.meetUrl || '');
   }, [dailySchedule]);
 
+  useEffect(() => {
+    setPinInput(workspacePin || '');
+  }, [workspacePin]);
+
   const handleSaveSchedule = (e) => {
     e.preventDefault();
     updateSchedule({
@@ -75,8 +87,23 @@ export const SettingsView = () => {
     setTimeout(() => setSavedPartnerSuccess(false), 3000);
   };
 
+  const handleSavePin = (e) => {
+    e.preventDefault();
+    updateWorkspacePin(pinInput);
+    setSavedPinSuccess(true);
+    setTimeout(() => setSavedPinSuccess(false), 3000);
+  };
+
+  const handleRemovePin = () => {
+    if (window.confirm('¿Deseas quitar la protección por PIN de este espacio? Cuestión de privacidad: cualquier persona con el enlace podrá entrar sin clave.')) {
+      updateWorkspacePin('');
+      setPinInput('');
+    }
+  };
+
   const handleExportData = () => {
     const backup = {
+      workspaceId,
       partners,
       dailySchedule,
       meetings,
@@ -89,7 +116,7 @@ export const SettingsView = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `socio-sync-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `socio-sync-${workspaceId}-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
   };
 
@@ -222,6 +249,78 @@ export const SettingsView = () => {
               </span>
             )}
           </div>
+        </form>
+      </div>
+
+      {/* Security & PIN Lock Setup */}
+      <div className="bg-white rounded-3xl border border-[#E6E0D4] p-6 shadow-xs space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-[#D95338]/10 text-[#C84B31] rounded-2xl">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-display text-lg font-extrabold text-[#1C1B1A]">Seguridad y PIN de Privacidad</h2>
+              <p className="text-xs text-[#6E685F]">Protege tu espacio de trabajo para que nadie más pueda ver tu información</p>
+            </div>
+          </div>
+
+          {workspacePin && (
+            <button
+              onClick={lockWorkspace}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#D95338]/10 hover:bg-[#D95338]/20 text-[#C84B31] border border-[#D95338]/25 rounded-xl text-xs font-extrabold transition-all"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Bloquear Pantalla Ahora</span>
+            </button>
+          )}
+        </div>
+
+        <form onSubmit={handleSavePin} className="pt-4 border-t border-[#E6E0D4] space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+            <div className="flex-1 w-full">
+              <label className="block text-xs font-semibold text-[#6E685F] mb-1">
+                Código PIN Secreto (4 dígitos)
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  maxLength={8}
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  placeholder="Ej: 1234"
+                  className="w-full bg-[#F5F2EB] border border-[#E6E0D4] rounded-xl px-3.5 py-2 text-sm text-[#1C1B1A] font-mono tracking-widest focus:outline-none focus:border-[#D95338]"
+                />
+                <KeyRound className="w-4 h-4 text-[#6E685F] absolute right-3 top-2.5" />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 sm:pt-4 w-full sm:w-auto">
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-[#D95338] hover:bg-[#C84B31] text-white font-extrabold text-xs rounded-xl shadow-xs transition-all whitespace-nowrap"
+              >
+                {workspacePin ? 'Actualizar PIN' : 'Establecer PIN Secreto'}
+              </button>
+
+              {workspacePin && (
+                <button
+                  type="button"
+                  onClick={handleRemovePin}
+                  className="px-3.5 py-2.5 bg-[#F5F2EB] hover:bg-[#EFEAE1] text-[#6E685F] border border-[#E6E0D4] rounded-xl text-xs font-bold transition-all"
+                  title="Quitar protección por clave"
+                >
+                  <Unlock className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {savedPinSuccess && (
+            <span className="text-xs text-[#2E5A44] font-bold flex items-center gap-1 animate-in fade-in duration-150">
+              <Check className="w-4 h-4" /> ¡PIN guardado! Al abrir la app se solicitará la clave.
+            </span>
+          )}
         </form>
       </div>
 

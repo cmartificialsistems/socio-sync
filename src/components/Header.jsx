@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useApp, formatTimeFormatted } from '../context/AppContext';
-import { Video, Radio, CheckSquare, Lightbulb, Settings, Calendar, Wifi, RefreshCw, QrCode, Layers } from 'lucide-react';
+import { Video, Radio, CheckSquare, Lightbulb, Settings, Calendar, Wifi, RefreshCw, QrCode, Layers, Lock } from 'lucide-react';
 import { QRTransferModal } from './QRTransferModal';
 import { WorkspaceModal } from './WorkspaceModal';
 
 export const Header = ({ activeTab, setActiveTab }) => {
   const { 
     workspaceId, 
+    workspacePin,
+    lockWorkspace,
     partners, 
     currentUser, 
     switchUser, 
@@ -61,7 +63,7 @@ export const Header = ({ activeTab, setActiveTab }) => {
               </div>
             </div>
 
-            {/* Action Buttons: Workspace Switcher & QR Transfer */}
+            {/* Action Buttons: Workspace Switcher, PIN Lock & QR Transfer */}
             <div className="flex items-center gap-2">
               
               {/* Workspace Switcher */}
@@ -74,6 +76,17 @@ export const Header = ({ activeTab, setActiveTab }) => {
                 <span className="capitalize text-xs font-extrabold hidden xs:inline">{workspaceId.replace(/-/g, ' ')}</span>
                 <span className="text-[10px] text-[#6E685F]">▾</span>
               </button>
+
+              {/* Lock Screen Button (if PIN set) */}
+              {workspacePin && (
+                <button
+                  onClick={lockWorkspace}
+                  className="p-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#C84B31] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all"
+                  title="Bloquear pantalla con PIN"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                </button>
+              )}
 
               {/* QR Mobile Sync Button */}
               <button
