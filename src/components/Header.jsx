@@ -3,16 +3,16 @@ import { useApp, formatTimeFormatted } from '../context/AppContext';
 import { Video, Radio, CheckSquare, Lightbulb, Settings, Calendar, Wifi, RefreshCw } from 'lucide-react';
 
 export const Header = ({ activeTab, setActiveTab }) => {
-  const { partners, currentUser, switchUser, dailySchedule, meetings, activeMeetingId, syncStatus, lastSyncTime, manualSyncNow } = useApp();
+  const { partners, currentUser, switchUser, dailySchedule, meetings, activeMeetingId, syncStatus, manualSyncNow } = useApp();
 
   const activeMeeting = meetings.find(m => m.id === activeMeetingId) || meetings[0];
 
   return (
     <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-[#E6E0D4] shadow-xs">
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-2 py-2">
         
         {/* Top Header Row */}
-        <div className="flex items-center justify-between h-16 sm:h-20 py-2 gap-2">
+        <div className="flex items-center justify-between gap-2">
           
           {/* Logo Brand */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
@@ -36,7 +36,7 @@ export const Header = ({ activeTab, setActiveTab }) => {
                   ) : (
                     <Wifi className="w-2.5 h-2.5 text-[#2E5A44]" />
                   )}
-                  <span className="hidden xs:inline">{syncStatus === 'syncing' ? 'Guardando...' : 'Nube'}</span>
+                  <span>{syncStatus === 'syncing' ? 'Guardando' : 'En Vivo'}</span>
                 </button>
               </div>
               <p className="text-[10px] text-[#6E685F] tracking-wide hidden sm:block font-medium">
@@ -69,32 +69,32 @@ export const Header = ({ activeTab, setActiveTab }) => {
             </a>
           </div>
 
-          {/* Right Controls: User Switcher & Manual Sync */}
-          <div className="flex items-center gap-2">
+          {/* Desktop User Switcher */}
+          <div className="hidden sm:flex items-center gap-2">
             <button
               onClick={manualSyncNow}
-              className="p-2 sm:px-3 sm:py-1.5 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
+              className="px-3 py-1.5 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
               title="Sincronizar ahora"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${syncStatus === 'syncing' ? 'animate-spin text-[#D95338]' : ''}`} />
-              <span className="hidden md:inline font-mono">Actualizar</span>
+              <span className="font-mono">Actualizar</span>
             </button>
 
-            <div className="flex items-center bg-[#EFEAE1] p-0.5 sm:p-1 rounded-xl sm:rounded-2xl border border-[#DDD6C8]">
+            <div className="flex items-center bg-[#EFEAE1] p-1 rounded-2xl border border-[#DDD6C8]">
               {partners.map(p => {
                 const isActive = currentUser.id === p.id;
                 return (
                   <button
                     key={p.id}
                     onClick={() => switchUser(p.id)}
-                    className={`flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all ${
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       isActive
                         ? 'bg-[#D95338] text-white shadow-xs'
                         : 'text-[#6E685F] hover:text-[#1C1B1A]'
                     }`}
                   >
                     <span>{p.avatar}</span>
-                    <span className="max-w-[60px] sm:max-w-none truncate">{p.name.split(' ')[0]}</span>
+                    <span>{p.name.split(' ')[0]}</span>
                   </button>
                 );
               })}
@@ -103,8 +103,30 @@ export const Header = ({ activeTab, setActiveTab }) => {
 
         </div>
 
+        {/* Mobile Dedicated Full-Width Partner Switcher Row */}
+        <div className="sm:hidden grid grid-cols-2 gap-1.5 bg-[#EFEAE1] p-1 rounded-xl border border-[#DDD6C8] w-full">
+          {partners.map(p => {
+            const isActive = currentUser.id === p.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => switchUser(p.id)}
+                className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-bold transition-all w-full text-center ${
+                  isActive
+                    ? 'bg-[#D95338] text-white shadow-xs'
+                    : 'text-[#6E685F] hover:text-[#1C1B1A]'
+                }`}
+              >
+                <span>{p.avatar}</span>
+                <span className="truncate">{p.name.split(' ')[0]}</span>
+                {isActive && <span className="text-[9px] opacity-80">(Tú)</span>}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Tab Bar (Scrollable on Mobile) */}
-        <div className="flex space-x-1.5 border-t border-[#E6E0D4] py-1.5 overflow-x-auto no-scrollbar">
+        <div className="flex space-x-1.5 border-t border-[#E6E0D4] pt-1.5 overflow-x-auto no-scrollbar">
           {[
             { id: 'reuniones', label: 'Reuniones', icon: Calendar },
             { id: 'tareas', label: 'Compromisos', icon: CheckSquare },
