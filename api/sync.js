@@ -1,4 +1,6 @@
-let memoryCache = null;
+if (typeof globalThis.socioSyncStore === 'undefined') {
+  globalThis.socioSyncStore = {};
+}
 
 export default function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -13,21 +15,21 @@ export default function handler(req, res) {
     return res.status(200).end();
   }
 
+  const workspaceId = req.query.workspaceId || 'colombia';
+
   if (req.method === 'POST' || req.method === 'PUT') {
     try {
       const payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      memoryCache = payload;
-      if (typeof globalThis !== 'undefined') {
-        globalThis.socioSyncWorkspaceData = payload;
-      }
-      return res.status(200).json({ success: true, ts: payload?.data?.ts || Date.now() });
+      const targetRoom = payload.workspaceId || workspaceId;
+      globalThis.socioSyncStore[targetRoom] = payload;
+      return res.status(200).json({ success: true, workspaceId: targetRoom, ts: payload?.data?.ts || Date.now() });
     } catch (e) {
       return res.status(400).json({ error: e.message });
     }
   }
 
   if (req.method === 'GET') {
-    const cached = memoryCache || (typeof globalThis !== 'undefined' ? globalThis.socioSyncWorkspaceData : null);
+    const cached = globalThis.socioSyncStore[workspaceId] || null;
     return res.status(200).json({ data: cached?.data || cached || null });
   }
 

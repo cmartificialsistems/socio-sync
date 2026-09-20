@@ -1,11 +1,24 @@
 import React, { useState } from 'react';
 import { useApp, formatTimeFormatted } from '../context/AppContext';
-import { Video, Radio, CheckSquare, Lightbulb, Settings, Calendar, Wifi, RefreshCw, Smartphone, QrCode } from 'lucide-react';
+import { Video, Radio, CheckSquare, Lightbulb, Settings, Calendar, Wifi, RefreshCw, QrCode, Layers } from 'lucide-react';
 import { QRTransferModal } from './QRTransferModal';
+import { WorkspaceModal } from './WorkspaceModal';
 
 export const Header = ({ activeTab, setActiveTab }) => {
-  const { partners, currentUser, switchUser, dailySchedule, meetings, activeMeetingId, syncStatus, manualSyncNow } = useApp();
+  const { 
+    workspaceId, 
+    partners, 
+    currentUser, 
+    switchUser, 
+    dailySchedule, 
+    meetings, 
+    activeMeetingId, 
+    syncStatus, 
+    manualSyncNow 
+  } = useApp();
+  
   const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
 
   const activeMeeting = meetings.find(m => m.id === activeMeetingId) || meetings[0];
 
@@ -48,8 +61,21 @@ export const Header = ({ activeTab, setActiveTab }) => {
               </div>
             </div>
 
-            {/* QR Mobile Sync Button (Visible on both desktop & mobile) */}
+            {/* Action Buttons: Workspace Switcher & QR Transfer */}
             <div className="flex items-center gap-2">
+              
+              {/* Workspace Switcher */}
+              <button
+                onClick={() => setWorkspaceModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all shadow-2xs"
+                title="Cambiar de sesión o crear nuevo espacio para otro socio"
+              >
+                <Layers className="w-3.5 h-3.5 text-[#D95338]" />
+                <span className="capitalize text-xs font-extrabold hidden xs:inline">{workspaceId.replace(/-/g, ' ')}</span>
+                <span className="text-[10px] text-[#6E685F]">▾</span>
+              </button>
+
+              {/* QR Mobile Sync Button */}
               <button
                 onClick={() => setQrModalOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-extrabold shadow-sm transition-all"
@@ -171,8 +197,9 @@ export const Header = ({ activeTab, setActiveTab }) => {
         </div>
       </header>
 
-      {/* QR Transfer Modal */}
+      {/* Modals */}
       <QRTransferModal isOpen={qrModalOpen} onClose={() => setQrModalOpen(false)} />
+      <WorkspaceModal isOpen={workspaceModalOpen} onClose={() => setWorkspaceModalOpen(false)} />
     </>
   );
 };

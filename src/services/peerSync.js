@@ -3,12 +3,16 @@ import Peer from 'peerjs';
 let peer = null;
 let activeConns = [];
 
-export const initPeerSync = (onStateReceived) => {
+export const initPeerSync = (workspaceId = 'colombia', onStateReceived) => {
   try {
-    // Generate a consistent peer id or mesh room
-    const roomId = 'sociosync_colombia_workspace_room';
+    const roomId = `sociosync_${workspaceId}_workspace_room`;
     
-    // Connect as a peer
+    // Close existing connection if switching
+    if (peer) {
+      try { peer.destroy(); } catch(e) {}
+    }
+    activeConns = [];
+
     peer = new Peer({
       config: {
         iceServers: [
@@ -19,13 +23,9 @@ export const initPeerSync = (onStateReceived) => {
     });
 
     peer.on('open', (id) => {
-      console.log('PeerJS connected with ID:', id);
-      
-      // Connect to the common room host peer if we are secondary, or accept connections
       const conn = peer.connect(roomId);
       
       conn.on('open', () => {
-        console.log('Connected to mesh room!');
         activeConns.push(conn);
       });
 

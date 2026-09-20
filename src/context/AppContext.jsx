@@ -32,11 +32,9 @@ const DEFAULT_DAILY_SCHEDULE = {
 
 const TODAY = new Date().toISOString().split('T')[0];
 
-const getSyncEndpoint = () => {
-  if (typeof window !== 'undefined' && window.location.origin) {
-    return `${window.location.origin}/api/sync`;
-  }
-  return '/api/sync';
+const getSyncEndpoint = (wsId) => {
+  const base = typeof window !== 'undefined' && window.location.origin ? `${window.location.origin}/api/sync` : '/api/sync';
+  return `${base}?workspaceId=${encodeURIComponent(wsId || 'colombia')}`;
 };
 
 // Deep Data Recovery Engine across all localStorage key versions
@@ -65,13 +63,26 @@ const recoverAllKeyVersions = (keys, fallback) => {
 };
 
 export const AppProvider = ({ children }) => {
+  // Active Workspace Management
+  const [workspaceId, setWorkspaceId] = useState(() => {
+    return localStorage.getItem('socio_sync_current_workspace_id') || 'colombia';
+  });
+
+  const [savedWorkspaces, setSavedWorkspaces] = useState(() => {
+    try {
+      const saved = localStorage.getItem('socio_sync_saved_workspaces_list');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return ['colombia'];
+  });
+
   const [partners, setPartners] = useState(() => {
-    return recoverAllKeyVersions(['socio_sync_partners_v3', 'socio_sync_partners_v2', 'socio_sync_partners'], DEFAULT_PARTNERS);
+    return recoverAllKeyVersions([`socio_sync_${workspaceId}_partners_v3`, 'socio_sync_partners_v3', 'socio_sync_partners'], DEFAULT_PARTNERS);
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('socio_sync_user_v3') || localStorage.getItem('socio_sync_user_v2');
+      const saved = localStorage.getItem(`socio_sync_${workspaceId}_user_v3`) || localStorage.getItem('socio_sync_user_v3');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return partners[0] || DEFAULT_PARTNERS[0];
@@ -79,14 +90,14 @@ export const AppProvider = ({ children }) => {
 
   const [dailySchedule, setDailySchedule] = useState(() => {
     try {
-      const saved = localStorage.getItem('socio_sync_schedule_v3') || localStorage.getItem('socio_sync_schedule_v2');
+      const saved = localStorage.getItem(`socio_sync_${workspaceId}_schedule_v3`) || localStorage.getItem('socio_sync_schedule_v3');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return DEFAULT_DAILY_SCHEDULE;
   });
 
   const [meetings, setMeetings] = useState(() => {
-    const recovered = recoverAllKeyVersions(['socio_sync_meetings_v3', 'socio_sync_meetings_v2'], null);
+    const recovered = recoverAllKeyVersions([`socio_sync_${workspaceId}_meetings_v3`, 'socio_sync_meetings_v3'], null);
     if (recovered && recovered.length > 0) return recovered;
     return [{
       id: 'meet-initial',
@@ -101,15 +112,15 @@ export const AppProvider = ({ children }) => {
   });
 
   const [topics, setTopics] = useState(() => {
-    return recoverAllKeyVersions(['socio_sync_topics_v3', 'socio_sync_topics_v2'], []);
+    return recoverAllKeyVersions([`socio_sync_${workspaceId}_topics_v3`, 'socio_sync_topics_v3'], []);
   });
 
   const [actionItems, setActionItems] = useState(() => {
-    return recoverAllKeyVersions(['socio_sync_actions_v3', 'socio_sync_actions_v2'], []);
+    return recoverAllKeyVersions([`socio_sync_${workspaceId}_actions_v3`, 'socio_sync_actions_v3'], []);
   });
 
   const [ideas, setIdeas] = useState(() => {
-    return recoverAllKeyVersions(['socio_sync_ideas_v3', 'socio_sync_ideas_v2'], []);
+    return recoverAllKeyVersions([`socio_sync_${workspaceId}_ideas_v3`, 'socio_sync_ideas_v3'], []);
   });
 
   const [activeMeetingId, setActiveMeetingId] = useState(() => {
@@ -122,38 +133,103 @@ export const AppProvider = ({ children }) => {
   const lastSyncedCloudTs = useRef(0);
   const isPerformingLocalMutation = useRef(false);
 
+  // Switch Active Workspace
+  const switchWorkspace = (newWsId) => {
+    const cleanId = newWsId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    setWorkspaceId(cleanId);
+    localStorage.setItem('socio_sync_current_workspace_id', cleanId);
+
+    if (!savedWorkspaces.includes(cleanId)) {
+      const updatedList = [...savedWorkspaces, cleanId];
+      setSavedWorkspaces(updatedList);
+      localStorage.setItem('socio_sync_saved_workspaces_list', JSON.stringify(updatedList));
+    }
+
+    // Load state for target workspace
+    const loadedPartners = recoverAllKeyVersions([`socio_sync_${cleanId}_partners_v3`], DEFAULT_PARTNERS);
+    const loadedSchedule = (() => {
+      try {
+        const raw = localStorage.getItem(`socio_sync_${cleanId}_schedule_v3`);
+        if (raw) return JSON.parse(raw);
+      } catch(e) {}
+      return DEFAULT_DAILY_SCHEDULE;
+    })();
+    const loadedMeetings = recoverAllKeyVersions([`socio_sync_${cleanId}_meetings_v3`], [{
+      id: 'meet-initial',
+      title: 'Reunión Diaria de Sincronización',
+      date: TODAY,
+      time: '10:00',
+      duration: 45,
+      status: 'Programada',
+      notes: 'Bienvenido a SocioSync.',
+      meetUrl: loadedSchedule.meetUrl
+    }]);
+    const loadedTopics = recoverAllKeyVersions([`socio_sync_${cleanId}_topics_v3`], []);
+    const loadedActions = recoverAllKeyVersions([`socio_sync_${cleanId}_actions_v3`], []);
+    const loadedIdeas = recoverAllKeyVersions([`socio_sync_${cleanId}_ideas_v3`], []);
+
+    setPartners(loadedPartners);
+    setCurrentUser(loadedPartners[0] || DEFAULT_PARTNERS[0]);
+    setDailySchedule(loadedSchedule);
+    setMeetings(loadedMeetings);
+    setTopics(loadedTopics);
+    setActionItems(loadedActions);
+    setIdeas(loadedIdeas);
+    setActiveMeetingId(loadedMeetings[0]?.id || 'meet-initial');
+
+    // Re-init PeerJS
+    initPeerSync(cleanId, (payload) => {
+      if (!payload) return;
+      if (payload.partners) setPartners(payload.partners);
+      if (payload.dailySchedule) setDailySchedule(payload.dailySchedule);
+      if (payload.meetings) setMeetings(payload.meetings);
+      if (payload.topics) setTopics(payload.topics);
+      if (payload.actionItems) setActionItems(payload.actionItems);
+      if (payload.ideas) setIdeas(payload.ideas);
+    });
+  };
+
   // Parse URL Import Parameters on Mount
   useEffect(() => {
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const importParam = searchParams.get('importData');
+      const wsParam = searchParams.get('workspaceId');
+
+      if (wsParam) {
+        setWorkspaceId(wsParam);
+        localStorage.setItem('socio_sync_current_workspace_id', wsParam);
+      }
+
       if (importParam) {
         const decompressed = LZString.decompressFromEncodedURIComponent(importParam);
         if (decompressed) {
           const payload = JSON.parse(decompressed);
+          const targetWs = payload.workspaceId || wsParam || workspaceId;
+          
           if (payload.partners && payload.partners.length > 0) {
             setPartners(payload.partners);
-            localStorage.setItem('socio_sync_partners_v3', JSON.stringify(payload.partners));
+            localStorage.setItem(`socio_sync_${targetWs}_partners_v3`, JSON.stringify(payload.partners));
           }
           if (payload.dailySchedule) {
             setDailySchedule(payload.dailySchedule);
-            localStorage.setItem('socio_sync_schedule_v3', JSON.stringify(payload.dailySchedule));
+            localStorage.setItem(`socio_sync_${targetWs}_schedule_v3`, JSON.stringify(payload.dailySchedule));
           }
           if (payload.meetings && payload.meetings.length > 0) {
             setMeetings(payload.meetings);
-            localStorage.setItem('socio_sync_meetings_v3', JSON.stringify(payload.meetings));
+            localStorage.setItem(`socio_sync_${targetWs}_meetings_v3`, JSON.stringify(payload.meetings));
           }
           if (Array.isArray(payload.topics)) {
             setTopics(payload.topics);
-            localStorage.setItem('socio_sync_topics_v3', JSON.stringify(payload.topics));
+            localStorage.setItem(`socio_sync_${targetWs}_topics_v3`, JSON.stringify(payload.topics));
           }
           if (Array.isArray(payload.actionItems)) {
             setActionItems(payload.actionItems);
-            localStorage.setItem('socio_sync_actions_v3', JSON.stringify(payload.actionItems));
+            localStorage.setItem(`socio_sync_${targetWs}_actions_v3`, JSON.stringify(payload.actionItems));
           }
           if (Array.isArray(payload.ideas)) {
             setIdeas(payload.ideas);
-            localStorage.setItem('socio_sync_ideas_v3', JSON.stringify(payload.ideas));
+            localStorage.setItem(`socio_sync_${targetWs}_ideas_v3`, JSON.stringify(payload.ideas));
           }
 
           // Clean URL query parameters
@@ -166,9 +242,9 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
-  // Initialize PeerJS Live WebRTC Sync
+  // Initialize PeerJS Live WebRTC Sync for current workspace
   useEffect(() => {
-    initPeerSync((receivedPayload) => {
+    initPeerSync(workspaceId, (receivedPayload) => {
       if (!receivedPayload) return;
       if (receivedPayload.partners) setPartners(receivedPayload.partners);
       if (receivedPayload.dailySchedule) setDailySchedule(receivedPayload.dailySchedule);
@@ -178,46 +254,47 @@ export const AppProvider = ({ children }) => {
       if (receivedPayload.ideas) setIdeas(receivedPayload.ideas);
       setSyncStatus('connected');
     });
-  }, []);
+  }, [workspaceId]);
 
-  // Sync back to local storage
+  // Sync back to local storage per workspace
   useEffect(() => {
-    localStorage.setItem('socio_sync_partners_v3', JSON.stringify(partners));
+    localStorage.setItem(`socio_sync_${workspaceId}_partners_v3`, JSON.stringify(partners));
     if (currentUser && partners && partners.length > 0) {
       const active = partners.find(p => p.id === currentUser.id);
       if (active && (active.name !== currentUser.name || active.role !== currentUser.role || active.avatar !== currentUser.avatar)) {
         setCurrentUser(active);
       }
     }
-  }, [partners, currentUser]);
+  }, [partners, currentUser, workspaceId]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_user_v3', JSON.stringify(currentUser));
-  }, [currentUser]);
+    localStorage.setItem(`socio_sync_${workspaceId}_user_v3`, JSON.stringify(currentUser));
+  }, [currentUser, workspaceId]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_schedule_v3', JSON.stringify(dailySchedule));
-  }, [dailySchedule]);
+    localStorage.setItem(`socio_sync_${workspaceId}_schedule_v3`, JSON.stringify(dailySchedule));
+  }, [dailySchedule, workspaceId]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_meetings_v3', JSON.stringify(meetings));
-  }, [meetings]);
+    localStorage.setItem(`socio_sync_${workspaceId}_meetings_v3`, JSON.stringify(meetings));
+  }, [meetings, workspaceId]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_topics_v3', JSON.stringify(topics));
-  }, [topics]);
+    localStorage.setItem(`socio_sync_${workspaceId}_topics_v3`, JSON.stringify(topics));
+  }, [topics, workspaceId]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_actions_v3', JSON.stringify(actionItems));
-  }, [actionItems]);
+    localStorage.setItem(`socio_sync_${workspaceId}_actions_v3`, JSON.stringify(actionItems));
+  }, [actionItems, workspaceId]);
 
   useEffect(() => {
-    localStorage.setItem('socio_sync_ideas_v3', JSON.stringify(ideas));
-  }, [ideas]);
+    localStorage.setItem(`socio_sync_${workspaceId}_ideas_v3`, JSON.stringify(ideas));
+  }, [ideas, workspaceId]);
 
   // PUSH LOCAL STATE TO OWN VERCEL SERVERLESS BACKEND & WEBRTC PEERS
   const pushToCloud = useCallback(async (customPayload) => {
     const fullState = {
+      workspaceId,
       partners: customPayload?.partners || partners,
       dailySchedule: customPayload?.dailySchedule || dailySchedule,
       meetings: customPayload?.meetings || meetings,
@@ -236,14 +313,15 @@ export const AppProvider = ({ children }) => {
       lastSyncedCloudTs.current = now;
 
       const payload = {
-        name: 'socio_sync_workspace_colombia',
+        workspaceId,
+        name: `socio_sync_workspace_${workspaceId}`,
         data: {
           ts: now,
           ...fullState
         }
       };
 
-      const syncUrl = getSyncEndpoint();
+      const syncUrl = getSyncEndpoint(workspaceId);
       await fetch(syncUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -261,14 +339,14 @@ export const AppProvider = ({ children }) => {
         isPerformingLocalMutation.current = false;
       }, 500);
     }
-  }, [partners, dailySchedule, meetings, topics, actionItems, ideas]);
+  }, [workspaceId, partners, dailySchedule, meetings, topics, actionItems, ideas]);
 
   // PULL CLOUD STATE FROM OWN VERCEL SERVERLESS BACKEND
   const pullFromCloud = useCallback(async (force = false) => {
     if (isPerformingLocalMutation.current && !force) return;
 
     try {
-      const syncUrl = getSyncEndpoint();
+      const syncUrl = getSyncEndpoint(workspaceId);
       const res = await fetch(syncUrl, { cache: 'no-store' });
       if (!res.ok) return;
       const result = await res.json();
@@ -293,7 +371,7 @@ export const AppProvider = ({ children }) => {
     } catch (e) {
       setSyncStatus('connected');
     }
-  }, []);
+  }, [workspaceId]);
 
   // Poll Vercel Serverless Sync API every 3 seconds
   useEffect(() => {
@@ -545,6 +623,9 @@ export const AppProvider = ({ children }) => {
 
   return (
     <AppContext.Provider value={{
+      workspaceId,
+      switchWorkspace,
+      savedWorkspaces,
       partners,
       updatePartner,
       currentUser,
