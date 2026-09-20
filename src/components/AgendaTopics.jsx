@@ -62,29 +62,31 @@ export const AgendaTopics = () => {
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-[#E6E0D4] p-6 shadow-sm space-y-5">
+    <div className="bg-white rounded-3xl border border-[#E6E0D4] p-4 sm:p-6 shadow-xs space-y-5">
       
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E6E0D4]">
+      {/* Symmetric Responsive Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#E6E0D4]">
         <div>
-          <h2 className="font-display text-lg font-extrabold text-[#1C1B1A] flex items-center gap-2">
+          <h2 className="font-display text-base sm:text-lg font-extrabold text-[#1C1B1A] flex items-center gap-2">
             <span>📝 Puntos a Tratar en Agenda</span>
             <span className="px-2.5 py-0.5 text-xs font-mono font-bold bg-[#D95338]/10 text-[#C84B31] rounded-full">
               {meetingTopics.length}
             </span>
           </h2>
-          <p className="text-xs text-[#6E685F]">Temas y minutas para debatir en la sesión actual</p>
+          <p className="text-xs text-[#6E685F] mt-0.5">Temas y minutas para debatir en la sesión actual</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Status Filter */}
-          <div className="flex bg-[#F5F2EB] p-1 rounded-xl border border-[#E6E0D4] text-xs font-mono">
+        {/* Symmetric Controls Container */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+          
+          {/* Status Filters */}
+          <div className="grid grid-cols-3 bg-[#F5F2EB] p-1 rounded-xl border border-[#E6E0D4] text-xs font-mono text-center w-full sm:w-auto">
             {['Todos', 'Pendientes', 'Resueltos'].map(st => (
               <button
                 key={st}
                 onClick={() => setFilterStatus(st)}
-                className={`px-3 py-1 rounded-lg font-bold transition-all ${
-                  filterStatus === st ? 'bg-white text-[#1C1B1A] shadow-sm' : 'text-[#6E685F] hover:text-[#1C1B1A]'
+                className={`py-1.5 px-2 rounded-lg font-bold transition-all text-center ${
+                  filterStatus === st ? 'bg-white text-[#1C1B1A] shadow-xs' : 'text-[#6E685F] hover:text-[#1C1B1A]'
                 }`}
               >
                 {st}
@@ -92,9 +94,10 @@ export const AgendaTopics = () => {
             ))}
           </div>
 
+          {/* Symmetric Add Topic Button */}
           <button
             onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-bold shadow-md transition-all"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-bold shadow-xs transition-all w-full sm:w-auto shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>Agregar Tema</span>
@@ -104,7 +107,7 @@ export const AgendaTopics = () => {
 
       {/* Form */}
       {showAddForm && (
-        <form onSubmit={handleCreateTopic} className="p-5 bg-[#F9F7F2] rounded-2xl border border-[#D95338]/30 space-y-3">
+        <form onSubmit={handleCreateTopic} className="p-4 sm:p-5 bg-[#F9F7F2] rounded-2xl border border-[#D95338]/30 space-y-3">
           <h3 className="font-display text-sm font-bold text-[#D95338]">Nuevo Tema a Tratar</h3>
           
           <div>
@@ -120,7 +123,7 @@ export const AgendaTopics = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#6E685F] mb-1">Detalles / Argumentos previas</label>
+            <label className="block text-xs font-semibold text-[#6E685F] mb-1">Detalles / Argumentos previos</label>
             <textarea
               rows={2}
               value={description}
@@ -130,9 +133,9 @@ export const AgendaTopics = () => {
             />
           </div>
 
-          <div className="flex items-center justify-between gap-4 pt-1">
-            <div>
-              <label className="block text-xs font-semibold text-[#6E685F] mb-1">Prioridad</label>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold text-[#6E685F]">Prioridad:</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
@@ -144,19 +147,19 @@ export const AgendaTopics = () => {
               </select>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
-                className="px-3 py-1.5 text-xs font-bold text-[#6E685F] hover:text-[#1C1B1A]"
+                className="px-4 py-2 text-xs font-bold text-[#6E685F] hover:text-[#1C1B1A]"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-bold"
+                className="px-5 py-2 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-bold shadow-xs"
               >
-                Guardar
+                Guardar Tema
               </button>
             </div>
           </div>
@@ -181,7 +184,7 @@ export const AgendaTopics = () => {
                   topic.status === 'Resuelto' 
                     ? 'bg-[#F5F2EB]/50 border-[#E6E0D4] opacity-70' 
                     : topic.status === 'En Discusión'
-                    ? 'bg-[#FAF6F0] border-[#D95338]/40 shadow-sm'
+                    ? 'bg-[#FAF6F0] border-[#D95338]/40 shadow-xs'
                     : 'bg-[#F9F7F2] border-[#E6E0D4] hover:border-[#D1C9B9]'
                 }`}
               >
@@ -193,7 +196,7 @@ export const AgendaTopics = () => {
                         const nextStatus = topic.status === 'Pendiente' ? 'En Discusión' : topic.status === 'En Discusión' ? 'Resuelto' : 'Pendiente';
                         updateTopicStatus(topic.id, nextStatus);
                       }}
-                      className="mt-0.5 transition-transform active:scale-95"
+                      className="mt-0.5 transition-transform active:scale-95 shrink-0"
                       title="Cambiar estado del tema"
                     >
                       {topic.status === 'Resuelto' ? (
@@ -205,24 +208,24 @@ export const AgendaTopics = () => {
                       )}
                     </button>
 
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <h3 className={`font-display text-sm font-bold ${topic.status === 'Resuelto' ? 'line-through text-[#6E685F]' : 'text-[#1C1B1A]'}`}>
+                        <h3 className={`font-display text-xs sm:text-sm font-bold break-words ${topic.status === 'Resuelto' ? 'line-through text-[#6E685F]' : 'text-[#1C1B1A]'}`}>
                           {topic.title}
                         </h3>
                         <span className={`px-2 py-0.5 text-[10px] font-mono font-bold border rounded-md uppercase ${getPriorityBadge(topic.priority)}`}>
                           {topic.priority}
                         </span>
                         <span className="text-[10px] text-[#6E685F] flex items-center gap-1 font-mono">
-                          Propuesto por: <strong className="text-[#1C1B1A]">{author?.avatar} {author?.name.split(' ')[0]}</strong>
+                          Por: <strong className="text-[#1C1B1A]">{author?.avatar} {author?.name.split(' ')[0]}</strong>
                         </span>
                       </div>
 
                       {topic.description && (
-                        <p className="text-xs text-[#524E48] mb-2 leading-relaxed">{topic.description}</p>
+                        <p className="text-xs text-[#524E48] mb-2 leading-relaxed break-words">{topic.description}</p>
                       )}
 
-                      <div className="flex items-center gap-4 mt-2 text-xs">
+                      <div className="flex items-center gap-4 mt-2 text-xs flex-wrap">
                         <button
                           onClick={() => toggleComments(topic.id)}
                           className="flex items-center gap-1 text-[#6E685F] hover:text-[#D95338] font-semibold"

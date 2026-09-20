@@ -29,9 +29,10 @@ const DEFAULT_DAILY_SCHEDULE = {
 };
 
 const TODAY = new Date().toISOString().split('T')[0];
-const CLOUD_SYNC_URL = 'https://api.npoint.io/c44c5b367d30f353ad63';
 
-// Helper to recover data across any localStorage key version
+// Dedicated high-availability REST Cloud Bin for SocioSync
+const CLOUD_SYNC_URL = 'https://api.restful-api.dev/objects/ff808181a09d98f701a0c0a215b45563';
+
 const loadSavedData = (keyV3, keyV2, keyV1, fallback) => {
   try {
     const v3 = localStorage.getItem(keyV3);
@@ -47,7 +48,6 @@ const loadSavedData = (keyV3, keyV2, keyV1, fallback) => {
 };
 
 export const AppProvider = ({ children }) => {
-  // Load & recover partner setup
   const [partners, setPartners] = useState(() => {
     return loadSavedData('socio_sync_partners_v3', 'socio_sync_partners_v2', 'socio_sync_user', DEFAULT_PARTNERS);
   });
@@ -61,7 +61,6 @@ export const AppProvider = ({ children }) => {
     return loadSavedData('socio_sync_schedule_v3', 'socio_sync_schedule_v2', 'socio_sync_schedule', DEFAULT_DAILY_SCHEDULE);
   });
 
-  // Load & recover all user data
   const [meetings, setMeetings] = useState(() => {
     const saved = loadSavedData('socio_sync_meetings_v3', 'socio_sync_meetings_v2', 'socio_sync_meetings', null);
     if (saved && saved.length > 0) return saved;
@@ -97,10 +96,9 @@ export const AppProvider = ({ children }) => {
   const [lastSyncTime, setLastSyncTime] = useState('Reciente');
   const lastPushTimestamp = useRef(0);
 
-  // Persistence Effects
+  // Local Persistence Effects
   useEffect(() => {
     localStorage.setItem('socio_sync_partners_v3', JSON.stringify(partners));
-    localStorage.setItem('socio_sync_partners_v2', JSON.stringify(partners));
   }, [partners]);
 
   useEffect(() => {
@@ -113,25 +111,21 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     localStorage.setItem('socio_sync_meetings_v3', JSON.stringify(meetings));
-    localStorage.setItem('socio_sync_meetings_v2', JSON.stringify(meetings));
   }, [meetings]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_topics_v3', JSON.stringify(topics));
-    localStorage.setItem('socio_sync_topics_v2', JSON.stringify(topics));
   }, [topics]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_actions_v3', JSON.stringify(actionItems));
-    localStorage.setItem('socio_sync_actions_v2', JSON.stringify(actionItems));
   }, [actionItems]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_ideas_v3', JSON.stringify(ideas));
-    localStorage.setItem('socio_sync_ideas_v2', JSON.stringify(ideas));
   }, [ideas]);
 
-  // PUSH TO CLOUD
+  // PUSH LOCAL STATE TO HIGH-AVAILABILITY CLOUD REST BIN
   const pushToCloud = useCallback(async (customPayload) => {
     try {
       setSyncStatus('syncing');
@@ -139,17 +133,20 @@ export const AppProvider = ({ children }) => {
       lastPushTimestamp.current = now;
 
       const payload = {
-        ts: now,
-        partners: customPayload?.partners || partners,
-        dailySchedule: customPayload?.dailySchedule || dailySchedule,
-        meetings: customPayload?.meetings || meetings,
-        topics: customPayload?.topics || topics,
-        actionItems: customPayload?.actionItems || actionItems,
-        ideas: customPayload?.ideas || ideas
+        name: 'socio_sync_workspace_colombia',
+        data: {
+          ts: now,
+          partners: customPayload?.partners || partners,
+          dailySchedule: customPayload?.dailySchedule || dailySchedule,
+          meetings: customPayload?.meetings || meetings,
+          topics: customPayload?.topics || topics,
+          actionItems: customPayload?.actionItems || actionItems,
+          ideas: customPayload?.ideas || ideas
+        }
       };
 
       await fetch(CLOUD_SYNC_URL, {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
@@ -158,17 +155,18 @@ export const AppProvider = ({ children }) => {
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       setLastSyncTime(timeStr);
     } catch (e) {
-      console.warn('Cloud sync push error:', e);
+      console.warn('Cloud push sync error:', e);
       setSyncStatus('offline');
     }
   }, [partners, dailySchedule, meetings, topics, actionItems, ideas]);
 
-  // PULL FROM CLOUD
+  // PULL CLOUD STATE AUTOMATICALLY
   const pullFromCloud = useCallback(async () => {
     try {
       const res = await fetch(CLOUD_SYNC_URL, { cache: 'no-store' });
       if (!res.ok) return;
-      const data = await res.json();
+      const result = await res.json();
+      const data = result?.data;
 
       if (data && data.ts && data.ts > lastPushTimestamp.current) {
         lastPushTimestamp.current = data.ts;
@@ -176,9 +174,9 @@ export const AppProvider = ({ children }) => {
         if (data.partners && data.partners.length > 0) setPartners(data.partners);
         if (data.dailySchedule) setDailySchedule(data.dailySchedule);
         if (data.meetings && data.meetings.length > 0) setMeetings(data.meetings);
-        if (data.topics && data.topics.length > 0) setTopics(data.topics);
-        if (data.actionItems && data.actionItems.length > 0) setActionItems(data.actionItems);
-        if (data.ideas && data.ideas.length > 0) setIdeas(data.ideas);
+        if (data.topics) setTopics(data.topics);
+        if (data.actionItems) setActionItems(data.actionItems);
+        if (data.ideas) setIdeas(data.ideas);
 
         setSyncStatus('connected');
         const timeStr = new Date(data.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -189,7 +187,7 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
-  // Sync Timer
+  // Poll cloud every 2 seconds
   useEffect(() => {
     pullFromCloud();
     const timer = setInterval(() => {
