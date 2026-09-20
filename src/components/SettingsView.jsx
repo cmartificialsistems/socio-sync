@@ -21,6 +21,9 @@ export const SettingsView = () => {
   const [savedScheduleSuccess, setSavedScheduleSuccess] = useState(false);
   const [savedPartnerSuccess, setSavedPartnerSuccess] = useState(false);
 
+  // Track if user is actively typing in partner form
+  const [isDirtyPartners, setIsDirtyPartners] = useState(false);
+
   // Partner 1 & 2 states
   const [p1Name, setP1Name] = useState(partners[0]?.name || '');
   const [p1Role, setP1Role] = useState(partners[0]?.role || '');
@@ -30,19 +33,21 @@ export const SettingsView = () => {
   const [p2Role, setP2Role] = useState(partners[1]?.role || '');
   const [p2Avatar, setP2Avatar] = useState(partners[1]?.avatar || '⚡');
 
-  // Sync inputs dynamically when partners context updates
+  // Sync inputs dynamically ONLY when user is not actively editing
   useEffect(() => {
-    if (partners[0]) {
-      setP1Name(partners[0].name || '');
-      setP1Role(partners[0].role || '');
-      setP1Avatar(partners[0].avatar || '🦁');
+    if (!isDirtyPartners) {
+      if (partners[0]) {
+        setP1Name(partners[0].name || '');
+        setP1Role(partners[0].role || '');
+        setP1Avatar(partners[0].avatar || '🦁');
+      }
+      if (partners[1]) {
+        setP2Name(partners[1].name || '');
+        setP2Role(partners[1].role || '');
+        setP2Avatar(partners[1].avatar || '⚡');
+      }
     }
-    if (partners[1]) {
-      setP2Name(partners[1].name || '');
-      setP2Role(partners[1].role || '');
-      setP2Avatar(partners[1].avatar || '⚡');
-    }
-  }, [partners]);
+  }, [partners, isDirtyPartners]);
 
   useEffect(() => {
     setDefaultHour(dailySchedule.defaultHour || '10:00');
@@ -65,6 +70,7 @@ export const SettingsView = () => {
     e.preventDefault();
     updatePartner('socio_1', { name: p1Name, role: p1Role, avatar: p1Avatar });
     updatePartner('socio_2', { name: p2Name, role: p2Role, avatar: p2Avatar });
+    setIsDirtyPartners(false);
     setSavedPartnerSuccess(true);
     setTimeout(() => setSavedPartnerSuccess(false), 3000);
   };
@@ -115,9 +121,12 @@ export const SettingsView = () => {
                   type="text"
                   required
                   value={p1Name}
-                  onChange={(e) => setP1Name(e.target.value)}
+                  onChange={(e) => {
+                    setP1Name(e.target.value);
+                    setIsDirtyPartners(true);
+                  }}
                   placeholder="Ej: Alex"
-                  className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
+                  className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A] focus:outline-none focus:border-[#D95338]"
                 />
               </div>
 
@@ -127,7 +136,10 @@ export const SettingsView = () => {
                   <input
                     type="text"
                     value={p1Role}
-                    onChange={(e) => setP1Role(e.target.value)}
+                    onChange={(e) => {
+                      setP1Role(e.target.value);
+                      setIsDirtyPartners(true);
+                    }}
                     placeholder="Ej: Co-Fundador"
                     className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
                   />
@@ -137,7 +149,10 @@ export const SettingsView = () => {
                   <input
                     type="text"
                     value={p1Avatar}
-                    onChange={(e) => setP1Avatar(e.target.value)}
+                    onChange={(e) => {
+                      setP1Avatar(e.target.value);
+                      setIsDirtyPartners(true);
+                    }}
                     className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-center"
                   />
                 </div>
@@ -154,9 +169,12 @@ export const SettingsView = () => {
                   type="text"
                   required
                   value={p2Name}
-                  onChange={(e) => setP2Name(e.target.value)}
+                  onChange={(e) => {
+                    setP2Name(e.target.value);
+                    setIsDirtyPartners(true);
+                  }}
                   placeholder="Ej: Carlos"
-                  className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
+                  className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A] focus:outline-none focus:border-[#2E5A44]"
                 />
               </div>
 
@@ -166,7 +184,10 @@ export const SettingsView = () => {
                   <input
                     type="text"
                     value={p2Role}
-                    onChange={(e) => setP2Role(e.target.value)}
+                    onChange={(e) => {
+                      setP2Role(e.target.value);
+                      setIsDirtyPartners(true);
+                    }}
                     placeholder="Ej: Co-Fundador"
                     className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A]"
                   />
@@ -176,7 +197,10 @@ export const SettingsView = () => {
                   <input
                     type="text"
                     value={p2Avatar}
-                    onChange={(e) => setP2Avatar(e.target.value)}
+                    onChange={(e) => {
+                      setP2Avatar(e.target.value);
+                      setIsDirtyPartners(true);
+                    }}
                     className="w-full bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-center"
                   />
                 </div>
@@ -193,8 +217,8 @@ export const SettingsView = () => {
               Guardar Nombres de Socios
             </button>
             {savedPartnerSuccess && (
-              <span className="text-xs text-[#2E5A44] font-bold flex items-center gap-1">
-                <Check className="w-4 h-4" /> ¡Nombres actualizados!
+              <span className="text-xs text-[#2E5A44] font-bold flex items-center gap-1 animate-in fade-in duration-150">
+                <Check className="w-4 h-4" /> ¡Nombres guardados y sincronizados!
               </span>
             )}
           </div>

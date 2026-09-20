@@ -183,7 +183,13 @@ export const AppProvider = ({ children }) => {
   // Sync back to local storage
   useEffect(() => {
     localStorage.setItem('socio_sync_partners_v3', JSON.stringify(partners));
-  }, [partners]);
+    if (currentUser && partners && partners.length > 0) {
+      const active = partners.find(p => p.id === currentUser.id);
+      if (active && (active.name !== currentUser.name || active.role !== currentUser.role || active.avatar !== currentUser.avatar)) {
+        setCurrentUser(active);
+      }
+    }
+  }, [partners, currentUser]);
 
   useEffect(() => {
     localStorage.setItem('socio_sync_user_v3', JSON.stringify(currentUser));
