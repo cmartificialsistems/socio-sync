@@ -472,13 +472,25 @@ export const AppProvider = ({ children }) => {
   }, [pullFromCloud]);
 
   // User Actions
-  const updatePartner = (partnerId, updates) => {
-    const updated = partners.map(p => p.id === partnerId ? { ...p, ...updates } : p);
-    setPartners(updated);
-    if (currentUser.id === partnerId) {
-      setCurrentUser(updated.find(p => p.id === partnerId));
+  const updatePartners = (newPartners) => {
+    setPartners(newPartners);
+    if (currentUser) {
+      const active = newPartners.find(p => p.id === currentUser.id);
+      if (active) setCurrentUser(active);
     }
-    pushToCloud({ partners: updated });
+    pushToCloud({ partners: newPartners });
+  };
+
+  const updatePartner = (partnerId, updates) => {
+    setPartners(prev => {
+      const updated = prev.map(p => p.id === partnerId ? { ...p, ...updates } : p);
+      if (currentUser && currentUser.id === partnerId) {
+        const active = updated.find(p => p.id === partnerId);
+        if (active) setCurrentUser(active);
+      }
+      pushToCloud({ partners: updated });
+      return updated;
+    });
   };
 
   const switchUser = (partnerId) => {
@@ -722,6 +734,7 @@ export const AppProvider = ({ children }) => {
       updateWorkspacePin,
       partners,
       updatePartner,
+      updatePartners,
       currentUser,
       switchUser,
       dailySchedule,

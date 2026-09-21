@@ -10,6 +10,7 @@ export const SettingsView = () => {
     clearAllData, 
     partners, 
     updatePartner,
+    updatePartners,
     meetings, 
     topics, 
     actionItems, 
@@ -80,8 +81,16 @@ export const SettingsView = () => {
 
   const handleSavePartners = (e) => {
     e.preventDefault();
-    updatePartner('socio_1', { name: p1Name, role: p1Role, avatar: p1Avatar });
-    updatePartner('socio_2', { name: p2Name, role: p2Role, avatar: p2Avatar });
+    const updated = partners.map(p => {
+      if (p.id === 'socio_1') return { ...p, name: p1Name, role: p1Role, avatar: p1Avatar };
+      if (p.id === 'socio_2') return { ...p, name: p2Name, role: p2Role, avatar: p2Avatar };
+      return p;
+    });
+    if (updatePartners) {
+      updatePartners(updated);
+    } else {
+      updatePartner('socio_1', { name: p1Name, role: p1Role, avatar: p1Avatar });
+    }
     setIsDirtyPartners(false);
     setSavedPartnerSuccess(true);
     setTimeout(() => setSavedPartnerSuccess(false), 3000);
