@@ -27,7 +27,7 @@ export const Header = ({ activeTab, setActiveTab }) => {
   return (
     <>
       <header className="sticky top-0 z-40 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-[#E6E0D4] shadow-xs">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 space-y-2 py-2">
+        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 space-y-2 py-2">
           
           {/* Top Header Row */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
@@ -65,38 +65,38 @@ export const Header = ({ activeTab, setActiveTab }) => {
               </button>
             </div>
 
-            {/* Action Buttons (Full-Width 3-Column Grid on Mobile, Flex on Desktop) */}
+            {/* Action Buttons (3-Column Grid on Mobile, Flex on Desktop) */}
             <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-2 w-full sm:w-auto">
               
-              {/* QR Mobile Sync Button (PROMINENT & FULLY VISIBLE) */}
+              {/* QR Mobile Sync Button */}
               <button
                 onClick={() => setQrModalOpen(true)}
-                className="flex items-center justify-center gap-1.5 px-3 py-2 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-extrabold shadow-sm transition-all text-center w-full"
+                className="flex items-center justify-center gap-1 px-2 sm:px-3 py-2 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-[11px] sm:text-xs font-extrabold shadow-xs transition-all text-center w-full min-w-0"
                 title="Sincronizar o compartir código QR / Enlace"
               >
-                <QrCode className="w-4 h-4 shrink-0" />
-                <span className="text-xs font-extrabold truncate">Pasar QR</span>
+                <QrCode className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Pasar QR</span>
               </button>
 
               {/* Workspace Switcher */}
               <button
                 onClick={() => setWorkspaceModalOpen(true)}
-                className="flex items-center justify-center gap-1 px-2.5 py-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all shadow-2xs text-center w-full"
+                className="flex items-center justify-center gap-1 px-2 py-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-2xs text-center w-full min-w-0"
                 title="Cambiar de sesión o crear nuevo espacio para otro socio"
               >
                 <Layers className="w-3.5 h-3.5 text-[#D95338] shrink-0" />
-                <span className="capitalize text-xs font-extrabold truncate">{workspaceId.replace(/-/g, ' ')}</span>
-                <span className="text-[10px] text-[#6E685F]">▾</span>
+                <span className="capitalize font-extrabold truncate">{workspaceId.replace(/-/g, ' ')}</span>
+                <span className="text-[9px] text-[#6E685F] shrink-0">▾</span>
               </button>
 
               {/* Lock Screen Button */}
               <button
                 onClick={lockWorkspace}
-                className="flex items-center justify-center gap-1 px-2.5 py-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#C84B31] border border-[#DFD8C8] rounded-xl text-xs font-bold transition-all text-center w-full"
+                className="flex items-center justify-center gap-1 px-2 py-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#C84B31] border border-[#DFD8C8] rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center w-full min-w-0"
                 title="Bloquear pantalla e ir al Login"
               >
                 <Lock className="w-3.5 h-3.5 shrink-0" />
-                <span className="text-xs font-bold truncate">Bloquear</span>
+                <span className="font-bold truncate">Bloquear</span>
               </button>
 
             </div>
@@ -195,7 +195,7 @@ export const Header = ({ activeTab, setActiveTab }) => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all w-full text-center truncate ${
+                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 px-1 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all w-full text-center truncate min-w-0 ${
                     isActive
                       ? 'bg-[#D95338]/10 text-[#C84B31] border border-[#D95338]/30 shadow-xs'
                       : 'text-[#6E685F] hover:text-[#1C1B1A] hover:bg-[#F0EBE1]'
