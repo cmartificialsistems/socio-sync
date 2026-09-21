@@ -62,6 +62,24 @@ const recoverAllKeyVersions = (keys, fallback) => {
   return merged.length > 0 ? merged : fallback;
 };
 
+const mergeItemsById = (cloudList, localList) => {
+  if (!Array.isArray(cloudList) || cloudList.length === 0) return localList || [];
+  if (!Array.isArray(localList) || localList.length === 0) return cloudList;
+  
+  const map = new Map();
+  localList.forEach(item => {
+    if (item && (item.id || item.title)) map.set(item.id || item.title, item);
+  });
+  cloudList.forEach(item => {
+    if (item && (item.id || item.title)) {
+      const key = item.id || item.title;
+      const existing = map.get(key);
+      map.set(key, existing ? { ...existing, ...item } : item);
+    }
+  });
+  return Array.from(map.values());
+};
+
 export const AppProvider = ({ children }) => {
   // Active Workspace Management
   const [workspaceId, setWorkspaceId] = useState(() => {
@@ -427,12 +445,12 @@ export const AppProvider = ({ children }) => {
               }
             }
           }
-          if (data.partners && data.partners.length > 0) setPartners(data.partners);
+          if (data.partners && data.partners.length > 0) setPartners(prev => mergeItemsById(data.partners, prev));
           if (data.dailySchedule) setDailySchedule(data.dailySchedule);
-          if (data.meetings && data.meetings.length > 0) setMeetings(data.meetings);
-          if (Array.isArray(data.topics)) setTopics(data.topics);
-          if (Array.isArray(data.actionItems)) setActionItems(data.actionItems);
-          if (Array.isArray(data.ideas)) setIdeas(data.ideas);
+          if (data.meetings && data.meetings.length > 0) setMeetings(prev => mergeItemsById(data.meetings, prev));
+          if (Array.isArray(data.topics)) setTopics(prev => mergeItemsById(data.topics, prev));
+          if (Array.isArray(data.actionItems)) setActionItems(prev => mergeItemsById(data.actionItems, prev));
+          if (Array.isArray(data.ideas)) setIdeas(prev => mergeItemsById(data.ideas, prev));
 
           setSyncStatus('connected');
           const timeStr = new Date(data.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
