@@ -445,7 +445,7 @@ export const AppProvider = ({ children }) => {
               }
             }
           }
-          if (data.partners && data.partners.length > 0) setPartners(prev => mergeItemsById(data.partners, prev));
+          if (data.partners && data.partners.length > 0) setPartners(data.partners);
           if (data.dailySchedule) setDailySchedule(data.dailySchedule);
           if (data.meetings && data.meetings.length > 0) setMeetings(prev => mergeItemsById(data.meetings, prev));
           if (Array.isArray(data.topics)) setTopics(prev => mergeItemsById(data.topics, prev));
