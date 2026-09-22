@@ -1,29 +1,25 @@
 const MASTER_INDEX_ID = 'ff808181a09d98f701a0c4f4847c63eb';
 
+// NOTE: intentionally NO in-RAM cache for master index.
+// Vercel Lambdas are stateless; a different warm instance may have written a
+// new docId that our cached copy doesn't know about, causing duplicate docs
+// and data loss. Always fetch fresh from restful-api.dev.
 if (typeof globalThis.socioSyncStore === 'undefined') {
   globalThis.socioSyncStore = {};
 }
-if (typeof globalThis.socioSyncMasterIndex === 'undefined') {
-  globalThis.socioSyncMasterIndex = null;
-}
 
 async function getMasterIndex() {
-  if (globalThis.socioSyncMasterIndex) {
-    return globalThis.socioSyncMasterIndex;
-  }
   try {
     const res = await fetch('https://api.restful-api.dev/objects/' + MASTER_INDEX_ID, { cache: 'no-store' });
     if (res.ok) {
       const doc = await res.json();
-      globalThis.socioSyncMasterIndex = doc.data?.workspaces || {};
-      return globalThis.socioSyncMasterIndex;
+      return doc.data?.workspaces || {};
     }
   } catch (e) {}
   return {};
 }
 
 async function saveMasterIndex(indexObj) {
-  globalThis.socioSyncMasterIndex = indexObj;
   try {
     await fetch('https://api.restful-api.dev/objects/' + MASTER_INDEX_ID, {
       method: 'PUT',

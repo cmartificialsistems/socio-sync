@@ -32,82 +32,367 @@ const DEFAULT_DAILY_SCHEDULE = {
 
 const TODAY = new Date().toISOString().split('T')[0];
 
-const getSyncEndpoint = (wsId) => {
-  const base = typeof window !== 'undefined' && window.location.origin ? `${window.location.origin}/api/sync` : '/api/sync';
-  return `${base}?workspaceId=${encodeURIComponent(wsId || 'colombia')}&_t=${Date.now()}`;
+// Build sync endpoint URL with cache-busting timestamp
+const getSyncUrl = (wsId) => {
+  const origin = typeof window !== 'undefined' && window.location.origin
+    ? window.location.origin
+    : 'https://socio-sync-three.vercel.app';
+  return `${origin}/api/sync?workspaceId=${encodeURIComponent(wsId || 'colombia')}&_t=${Date.now()}`;
 };
 
-// Deep Data Recovery Engine across all localStorage key versions
-const recoverAllKeyVersions = (keys, fallback) => {
-  const allItemsMap = new Map();
-  keys.forEach(key => {
+// Read a workspace's data from localStorage
+const loadWorkspaceFromLocal = (wsId) => {
+  const get = (key, fallback) => {
     try {
       const raw = localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          parsed.forEach(item => {
-            if (item && (item.id || item.title)) {
-              const itemKey = item.id || item.title;
-              if (!allItemsMap.has(itemKey)) {
-                allItemsMap.set(itemKey, item);
-              }
-            }
-          });
-        }
-      }
-    } catch (e) {}
-  });
-  const merged = Array.from(allItemsMap.values());
-  return merged.length > 0 ? merged : fallback;
+      return raw ? JSON.parse(raw) : fallback;
+    } catch { return fallback; }
+  };
+
+  const partners = get(`ss_${wsId}_partners`, DEFAULT_PARTNERS);
+  const schedule = get(`ss_${wsId}_schedule`, DEFAULT_DAILY_SCHEDULE);
+  const meetings = get(`ss_${wsId}_meetings`, [{
+    id: 'meet-initial',
+    title: 'Reunión Diaria de Sincronización',
+    date: TODAY,
+    time: schedule.defaultHour || '10:00',
+    duration: 45,
+    status: 'Programada',
+    notes: 'Bienvenido a SocioSync.',
+    meetUrl: schedule.meetUrl
+  }]);
+  const topics = get(`ss_${wsId}_topics`, []);
+  const actionItems = get(`ss_${wsId}_actions`, []);
+  const ideas = get(`ss_${wsId}_ideas`, []);
+  const pin = localStorage.getItem(`ss_${wsId}_pin`) || '';
+  const user = get(`ss_${wsId}_user`, partners[0] || DEFAULT_PARTNERS[0]);
+
+  return { partners, schedule, meetings, topics, actionItems, ideas, pin, user };
 };
 
-const mergeItemsById = (cloudList, localList) => {
-  if (!Array.isArray(cloudList) || cloudList.length === 0) return localList || [];
-  if (!Array.isArray(localList) || localList.length === 0) return cloudList;
-  
-  const map = new Map();
-  localList.forEach(item => {
-    if (item && (item.id || item.title)) map.set(item.id || item.title, item);
-  });
-  cloudList.forEach(item => {
-    if (item && (item.id || item.title)) {
-      const key = item.id || item.title;
-      const existing = map.get(key);
-      map.set(key, existing ? { ...existing, ...item } : item);
-    }
-  });
-  return Array.from(map.values());
+// Save workspace state to localStorage
+const saveWorkspaceToLocal = (wsId, state) => {
+  try {
+    if (state.partners) localStorage.setItem(`ss_${wsId}_partners`, JSON.stringify(state.partners));
+    if (state.schedule) localStorage.setItem(`ss_${wsId}_schedule`, JSON.stringify(state.schedule));
+    if (state.meetings) localStorage.setItem(`ss_${wsId}_meetings`, JSON.stringify(state.meetings));
+    if (state.topics !== undefined) localStorage.setItem(`ss_${wsId}_topics`, JSON.stringify(state.topics));
+    if (state.actionItems !== undefined) localStorage.setItem(`ss_${wsId}_actions`, JSON.stringify(state.actionItems));
+    if (state.ideas !== undefined) localStorage.setItem(`ss_${wsId}_ideas`, JSON.stringify(state.ideas));
+    if (state.pin !== undefined) localStorage.setItem(`ss_${wsId}_pin`, state.pin);
+    if (state.user) localStorage.setItem(`ss_${wsId}_user`, JSON.stringify(state.user));
+  } catch { }
 };
 
 export const AppProvider = ({ children }) => {
-  // Active Workspace Management
+  // ─── Workspace ID ───────────────────────────────────────────────
   const [workspaceId, setWorkspaceId] = useState(() => {
-    return localStorage.getItem('socio_sync_current_workspace_id') || 'colombia';
+    return localStorage.getItem('ss_current_workspace') || 'colombia';
   });
 
+  // ─── Core workspace state ───────────────────────────────────────
+  const initWs = loadWorkspaceFromLocal(workspaceId);
+
+  const [partners, setPartners] = useState(initWs.partners);
+  const [currentUser, setCurrentUser] = useState(initWs.user);
+  const [dailySchedule, setDailySchedule] = useState(initWs.schedule);
+  const [meetings, setMeetings] = useState(initWs.meetings);
+  const [topics, setTopics] = useState(initWs.topics);
+  const [actionItems, setActionItems] = useState(initWs.actionItems);
+  const [ideas, setIdeas] = useState(initWs.ideas);
+  const [activeMeetingId, setActiveMeetingId] = useState(initWs.meetings[0]?.id || 'meet-initial');
+
+  // ─── PIN / Lock state ───────────────────────────────────────────
+  const [workspacePin, setWorkspacePinState] = useState(initWs.pin);
+  const [isLocked, setIsLocked] = useState(() => {
+    const unlocked = sessionStorage.getItem(`ss_${workspaceId}_unlocked`);
+    return initWs.pin ? unlocked !== 'true' : false;
+  });
+
+  // ─── Sync metadata ──────────────────────────────────────────────
+  const [syncStatus, setSyncStatus] = useState('connected');
+  const [lastSyncTime, setLastSyncTime] = useState('Reciente');
   const [savedWorkspaces, setSavedWorkspaces] = useState(() => {
     try {
-      const saved = localStorage.getItem('socio_sync_saved_workspaces_list');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
+      const raw = localStorage.getItem('ss_workspaces_list');
+      if (raw) return JSON.parse(raw);
+    } catch { }
     return ['colombia'];
   });
 
-  // Workspace PIN Lock State
-  const [workspacePin, setWorkspacePinState] = useState(() => {
-    return localStorage.getItem(`socio_sync_${workspaceId}_pin`) || '';
-  });
+  // Refs for sync management
+  const lastCloudTs = useRef(0);        // last timestamp received from cloud
+  const isMutating = useRef(false);     // true while we are pushing our own change
+  const activeWsRef = useRef(workspaceId); // always tracks current workspaceId
 
-  const [isLocked, setIsLocked] = useState(() => {
-    const unlocked = sessionStorage.getItem(`socio_sync_${workspaceId}_unlocked`);
-    return unlocked !== 'true';
-  });
+  // ─── Keep activeWsRef in sync ───────────────────────────────────
+  useEffect(() => {
+    activeWsRef.current = workspaceId;
+  }, [workspaceId]);
 
-  const unlockWorkspace = (inputPin) => {
-    if (!workspacePin || inputPin === workspacePin) {
+  // ─── Persist state to localStorage whenever it changes ──────────
+  useEffect(() => {
+    saveWorkspaceToLocal(workspaceId, { partners });
+  }, [partners, workspaceId]);
+
+  useEffect(() => {
+    saveWorkspaceToLocal(workspaceId, { user: currentUser });
+  }, [currentUser, workspaceId]);
+
+  useEffect(() => {
+    saveWorkspaceToLocal(workspaceId, { schedule: dailySchedule });
+  }, [dailySchedule, workspaceId]);
+
+  useEffect(() => {
+    saveWorkspaceToLocal(workspaceId, { meetings });
+  }, [meetings, workspaceId]);
+
+  useEffect(() => {
+    saveWorkspaceToLocal(workspaceId, { topics });
+  }, [topics, workspaceId]);
+
+  useEffect(() => {
+    saveWorkspaceToLocal(workspaceId, { actionItems });
+  }, [actionItems, workspaceId]);
+
+  useEffect(() => {
+    saveWorkspaceToLocal(workspaceId, { ideas });
+  }, [ideas, workspaceId]);
+
+  // ─── Load a full workspace state into React state ────────────────
+  const applyWorkspaceState = useCallback((wsData) => {
+    if (wsData.partners && wsData.partners.length > 0) setPartners(wsData.partners);
+    if (wsData.dailySchedule) setDailySchedule(wsData.dailySchedule);
+    if (wsData.meetings && wsData.meetings.length > 0) {
+      setMeetings(wsData.meetings);
+      setActiveMeetingId(wsData.meetings[0]?.id || 'meet-initial');
+    }
+    if (Array.isArray(wsData.topics)) setTopics(wsData.topics);
+    if (Array.isArray(wsData.actionItems)) setActionItems(wsData.actionItems);
+    if (Array.isArray(wsData.ideas)) setIdeas(wsData.ideas);
+  }, []);
+
+  // ─── Switch Workspace ────────────────────────────────────────────
+  const switchWorkspace = useCallback((newWsId) => {
+    const cleanId = newWsId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    if (!cleanId) return;
+
+    // Save current workspace state before switching
+    saveWorkspaceToLocal(workspaceId, {
+      partners, schedule: dailySchedule, meetings, topics, actionItems, ideas
+    });
+
+    // Update workspace list
+    if (!savedWorkspaces.includes(cleanId)) {
+      const updatedList = [...savedWorkspaces, cleanId];
+      setSavedWorkspaces(updatedList);
+      localStorage.setItem('ss_workspaces_list', JSON.stringify(updatedList));
+    }
+
+    localStorage.setItem('ss_current_workspace', cleanId);
+    setWorkspaceId(cleanId);
+
+    // CRITICAL FIX: Reset the cloud timestamp so the new workspace
+    // always fetches fresh data from cloud instead of being skipped
+    lastCloudTs.current = 0;
+    isMutating.current = false;
+
+    // Load new workspace state from localStorage immediately (fast UI)
+    const newWsData = loadWorkspaceFromLocal(cleanId);
+    setPartners(newWsData.partners);
+    setCurrentUser(newWsData.user || newWsData.partners[0] || DEFAULT_PARTNERS[0]);
+    setDailySchedule(newWsData.schedule);
+    setMeetings(newWsData.meetings);
+    setTopics(newWsData.topics);
+    setActionItems(newWsData.actionItems);
+    setIdeas(newWsData.ideas);
+    setActiveMeetingId(newWsData.meetings[0]?.id || 'meet-initial');
+
+    // Load PIN for new workspace
+    const newPin = localStorage.getItem(`ss_${cleanId}_pin`) || '';
+    setWorkspacePinState(newPin);
+    if (newPin) {
+      const unlocked = sessionStorage.getItem(`ss_${cleanId}_unlocked`);
+      setIsLocked(unlocked !== 'true');
+    } else {
       setIsLocked(false);
-      sessionStorage.setItem(`socio_sync_${workspaceId}_unlocked`, 'true');
+    }
+
+    // Immediately fetch from cloud for new workspace (async, will update state)
+    setTimeout(() => {
+      pullFromCloudForWorkspace(cleanId);
+    }, 100);
+  }, [workspaceId, savedWorkspaces, partners, dailySchedule, meetings, topics, actionItems, ideas]);
+
+  // ─── Push to Cloud ────────────────────────────────────────────────
+  const pushToCloud = useCallback(async (customPayload) => {
+    const wsId = activeWsRef.current;
+    const fullState = {
+      workspaceId: wsId,
+      pin: customPayload?.pin !== undefined ? customPayload.pin : workspacePin,
+      partners: customPayload?.partners || partners,
+      dailySchedule: customPayload?.dailySchedule || dailySchedule,
+      meetings: customPayload?.meetings || meetings,
+      topics: customPayload?.topics || topics,
+      actionItems: customPayload?.actionItems || actionItems,
+      ideas: customPayload?.ideas || ideas,
+      ts: Date.now()
+    };
+
+    // Broadcast to WebRTC peers
+    broadcastPeerState(fullState);
+
+    try {
+      setSyncStatus('syncing');
+      isMutating.current = true;
+      lastCloudTs.current = fullState.ts;
+
+      await fetch(getSyncUrl(wsId), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId: wsId, data: fullState })
+      });
+
+      setSyncStatus('connected');
+      const timeStr = new Date(fullState.ts).toLocaleTimeString([], {
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+      setLastSyncTime(timeStr);
+    } catch (e) {
+      console.warn('Cloud push error:', e);
+      setSyncStatus('connected');
+    } finally {
+      setTimeout(() => { isMutating.current = false; }, 800);
+    }
+  }, [workspacePin, partners, dailySchedule, meetings, topics, actionItems, ideas]);
+
+  // ─── Pull from Cloud for a specific workspace ─────────────────────
+  const pullFromCloudForWorkspace = async (wsId) => {
+    try {
+      const res = await fetch(getSyncUrl(wsId), { cache: 'no-store' });
+      if (!res.ok) return;
+      const result = await res.json();
+      const data = result?.data;
+
+      if (!data || !data.ts) return;
+
+      // CRITICAL: only apply if this response is for the CURRENTLY ACTIVE workspace
+      if (activeWsRef.current !== wsId) return;
+
+      if (data.pin !== undefined) {
+        const cloudPin = String(data.pin || '').trim();
+        setWorkspacePinState(cloudPin);
+        localStorage.setItem(`ss_${wsId}_pin`, cloudPin);
+        if (cloudPin) {
+          const unlocked = sessionStorage.getItem(`ss_${wsId}_unlocked`);
+          if (unlocked !== 'true') setIsLocked(true);
+        }
+      }
+
+      applyWorkspaceState(data);
+      lastCloudTs.current = data.ts;
+
+      setSyncStatus('connected');
+      const timeStr = new Date(data.ts).toLocaleTimeString([], {
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+      setLastSyncTime(timeStr);
+
+      // Also persist to localStorage
+      saveWorkspaceToLocal(wsId, {
+        partners: data.partners,
+        schedule: data.dailySchedule,
+        meetings: data.meetings,
+        topics: data.topics,
+        actionItems: data.actionItems,
+        ideas: data.ideas,
+        pin: data.pin !== undefined ? String(data.pin || '') : undefined
+      });
+    } catch (e) {
+      setSyncStatus('connected');
+    }
+  };
+
+  // ─── Regular Pull (polling) ────────────────────────────────────────
+  const pullFromCloud = useCallback(async (force = false) => {
+    if (isMutating.current && !force) return;
+    await pullFromCloudForWorkspace(activeWsRef.current);
+  }, [applyWorkspaceState]);
+
+  // ─── Poll every 3 seconds ──────────────────────────────────────────
+  useEffect(() => {
+    // Always force-pull on first mount or workspace change
+    pullFromCloudForWorkspace(workspaceId);
+    const timer = setInterval(() => {
+      if (!isMutating.current) {
+        pullFromCloudForWorkspace(activeWsRef.current);
+      }
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [workspaceId]);
+
+  // ─── PeerJS WebRTC Sync ────────────────────────────────────────────
+  useEffect(() => {
+    initPeerSync(workspaceId, (payload) => {
+      if (!payload) return;
+      if (activeWsRef.current !== workspaceId) return;
+      if (payload.pin !== undefined) {
+        setWorkspacePinState(String(payload.pin || '').trim());
+        localStorage.setItem(`ss_${workspaceId}_pin`, String(payload.pin || '').trim());
+      }
+      applyWorkspaceState(payload);
+      setSyncStatus('connected');
+    });
+  }, [workspaceId]);
+
+  // ─── URL Import on mount ────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const importParam = params.get('importData');
+      const wsParam = params.get('workspaceId');
+
+      if (wsParam) {
+        localStorage.setItem('ss_current_workspace', wsParam);
+        setWorkspaceId(wsParam);
+      }
+
+      if (importParam) {
+        const decompressed = LZString.decompressFromEncodedURIComponent(importParam);
+        if (decompressed) {
+          const payload = JSON.parse(decompressed);
+          const targetWs = payload.workspaceId || wsParam || workspaceId;
+
+          saveWorkspaceToLocal(targetWs, {
+            partners: payload.partners,
+            schedule: payload.dailySchedule,
+            meetings: payload.meetings,
+            topics: payload.topics,
+            actionItems: payload.actionItems,
+            ideas: payload.ideas,
+            pin: payload.pin !== undefined ? String(payload.pin || '') : undefined
+          });
+
+          if (activeWsRef.current === targetWs) {
+            applyWorkspaceState(payload);
+            if (payload.pin !== undefined) {
+              setWorkspacePinState(String(payload.pin || '').trim());
+            }
+          }
+
+          window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+        }
+      }
+    } catch (e) {
+      console.warn('URL Import error:', e);
+    }
+  }, []);
+
+  // ─── PIN / Lock actions ────────────────────────────────────────────
+  const unlockWorkspace = (inputPin) => {
+    if (!workspacePin || String(inputPin).trim() === String(workspacePin).trim()) {
+      setIsLocked(false);
+      sessionStorage.setItem(`ss_${workspaceId}_unlocked`, 'true');
       return true;
     }
     return false;
@@ -116,381 +401,37 @@ export const AppProvider = ({ children }) => {
   const lockWorkspace = () => {
     if (workspacePin) {
       setIsLocked(true);
-      sessionStorage.removeItem(`socio_sync_${workspaceId}_unlocked`);
+      sessionStorage.removeItem(`ss_${workspaceId}_unlocked`);
     }
   };
 
   const updateWorkspacePin = (newPin) => {
-    const cleanPin = newPin ? newPin.trim() : '';
+    const cleanPin = newPin ? String(newPin).trim() : '';
     setWorkspacePinState(cleanPin);
-    localStorage.setItem(`socio_sync_${workspaceId}_pin`, cleanPin);
+    localStorage.setItem(`ss_${workspaceId}_pin`, cleanPin);
     if (!cleanPin) {
       setIsLocked(false);
-      sessionStorage.setItem(`socio_sync_${workspaceId}_unlocked`, 'true');
+      sessionStorage.setItem(`ss_${workspaceId}_unlocked`, 'true');
     }
     pushToCloud({ pin: cleanPin });
   };
 
-  const [partners, setPartners] = useState(() => {
-    return recoverAllKeyVersions([`socio_sync_${workspaceId}_partners_v3`, 'socio_sync_partners_v3', 'socio_sync_partners'], DEFAULT_PARTNERS);
-  });
-
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem(`socio_sync_${workspaceId}_user_v3`) || localStorage.getItem('socio_sync_user_v3');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return partners[0] || DEFAULT_PARTNERS[0];
-  });
-
-  const [dailySchedule, setDailySchedule] = useState(() => {
-    try {
-      const saved = localStorage.getItem(`socio_sync_${workspaceId}_schedule_v3`) || localStorage.getItem('socio_sync_schedule_v3');
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return DEFAULT_DAILY_SCHEDULE;
-  });
-
-  const [meetings, setMeetings] = useState(() => {
-    const recovered = recoverAllKeyVersions([`socio_sync_${workspaceId}_meetings_v3`, 'socio_sync_meetings_v3'], null);
-    if (recovered && recovered.length > 0) return recovered;
-    return [{
-      id: 'meet-initial',
-      title: 'Reunión Diaria de Sincronización',
-      date: TODAY,
-      time: '10:00',
-      duration: 45,
-      status: 'Programada',
-      notes: 'Bienvenido a SocioSync. Agrega aquí tus puntos a tratar y compromisos.',
-      meetUrl: DEFAULT_DAILY_SCHEDULE.meetUrl
-    }];
-  });
-
-  const [topics, setTopics] = useState(() => {
-    return recoverAllKeyVersions([`socio_sync_${workspaceId}_topics_v3`, 'socio_sync_topics_v3'], []);
-  });
-
-  const [actionItems, setActionItems] = useState(() => {
-    return recoverAllKeyVersions([`socio_sync_${workspaceId}_actions_v3`, 'socio_sync_actions_v3'], []);
-  });
-
-  const [ideas, setIdeas] = useState(() => {
-    return recoverAllKeyVersions([`socio_sync_${workspaceId}_ideas_v3`, 'socio_sync_ideas_v3'], []);
-  });
-
-  const [activeMeetingId, setActiveMeetingId] = useState(() => {
-    return meetings[0]?.id || 'meet-initial';
-  });
-
-  const [syncStatus, setSyncStatus] = useState('connected');
-  const [lastSyncTime, setLastSyncTime] = useState('Reciente');
-
-  const lastSyncedCloudTs = useRef(0);
-  const isPerformingLocalMutation = useRef(false);
-
-  // Switch Active Workspace
-  const switchWorkspace = (newWsId) => {
-    const cleanId = newWsId.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-    setWorkspaceId(cleanId);
-    localStorage.setItem('socio_sync_current_workspace_id', cleanId);
-
-    if (!savedWorkspaces.includes(cleanId)) {
-      const updatedList = [...savedWorkspaces, cleanId];
-      setSavedWorkspaces(updatedList);
-      localStorage.setItem('socio_sync_saved_workspaces_list', JSON.stringify(updatedList));
-    }
-
-    // Check PIN for target workspace
-    const targetPin = localStorage.getItem(`socio_sync_${cleanId}_pin`) || '';
-    setWorkspacePinState(targetPin);
-    if (targetPin) {
-      const unlocked = sessionStorage.getItem(`socio_sync_${cleanId}_unlocked`);
-      setIsLocked(unlocked !== 'true');
-    } else {
-      setIsLocked(false);
-    }
-
-    // Load state for target workspace
-    const loadedPartners = recoverAllKeyVersions([`socio_sync_${cleanId}_partners_v3`], DEFAULT_PARTNERS);
-    const loadedSchedule = (() => {
-      try {
-        const raw = localStorage.getItem(`socio_sync_${cleanId}_schedule_v3`);
-        if (raw) return JSON.parse(raw);
-      } catch(e) {}
-      return DEFAULT_DAILY_SCHEDULE;
-    })();
-    const loadedMeetings = recoverAllKeyVersions([`socio_sync_${cleanId}_meetings_v3`], [{
-      id: 'meet-initial',
-      title: 'Reunión Diaria de Sincronización',
-      date: TODAY,
-      time: '10:00',
-      duration: 45,
-      status: 'Programada',
-      notes: 'Bienvenido a SocioSync.',
-      meetUrl: loadedSchedule.meetUrl
-    }]);
-    const loadedTopics = recoverAllKeyVersions([`socio_sync_${cleanId}_topics_v3`], []);
-    const loadedActions = recoverAllKeyVersions([`socio_sync_${cleanId}_actions_v3`], []);
-    const loadedIdeas = recoverAllKeyVersions([`socio_sync_${cleanId}_ideas_v3`], []);
-
-    setPartners(loadedPartners);
-    setCurrentUser(loadedPartners[0] || DEFAULT_PARTNERS[0]);
-    setDailySchedule(loadedSchedule);
-    setMeetings(loadedMeetings);
-    setTopics(loadedTopics);
-    setActionItems(loadedActions);
-    setIdeas(loadedIdeas);
-    setActiveMeetingId(loadedMeetings[0]?.id || 'meet-initial');
-
-    // Re-init PeerJS
-    initPeerSync(cleanId, (payload) => {
-      if (!payload) return;
-      if (payload.pin !== undefined) {
-        setWorkspacePinState(payload.pin);
-        localStorage.setItem(`socio_sync_${cleanId}_pin`, payload.pin || '');
-      }
-      if (payload.partners) setPartners(payload.partners);
-      if (payload.dailySchedule) setDailySchedule(payload.dailySchedule);
-      if (payload.meetings) setMeetings(payload.meetings);
-      if (payload.topics) setTopics(payload.topics);
-      if (payload.actionItems) setActionItems(payload.actionItems);
-      if (payload.ideas) setIdeas(payload.ideas);
-    });
-  };
-
-  // Parse URL Import Parameters on Mount
-  useEffect(() => {
-    try {
-      const searchParams = new URLSearchParams(window.location.search);
-      const importParam = searchParams.get('importData');
-      const wsParam = searchParams.get('workspaceId');
-
-      if (wsParam) {
-        setWorkspaceId(wsParam);
-        localStorage.setItem('socio_sync_current_workspace_id', wsParam);
-      }
-
-      if (importParam) {
-        const decompressed = LZString.decompressFromEncodedURIComponent(importParam);
-        if (decompressed) {
-          const payload = JSON.parse(decompressed);
-          const targetWs = payload.workspaceId || wsParam || workspaceId;
-          
-          if (payload.pin !== undefined) {
-            setWorkspacePinState(payload.pin);
-            localStorage.setItem(`socio_sync_${targetWs}_pin`, payload.pin || '');
-          }
-          if (payload.partners && payload.partners.length > 0) {
-            setPartners(payload.partners);
-            localStorage.setItem(`socio_sync_${targetWs}_partners_v3`, JSON.stringify(payload.partners));
-          }
-          if (payload.dailySchedule) {
-            setDailySchedule(payload.dailySchedule);
-            localStorage.setItem(`socio_sync_${targetWs}_schedule_v3`, JSON.stringify(payload.dailySchedule));
-          }
-          if (payload.meetings && payload.meetings.length > 0) {
-            setMeetings(payload.meetings);
-            localStorage.setItem(`socio_sync_${targetWs}_meetings_v3`, JSON.stringify(payload.meetings));
-          }
-          if (Array.isArray(payload.topics)) {
-            setTopics(payload.topics);
-            localStorage.setItem(`socio_sync_${targetWs}_topics_v3`, JSON.stringify(payload.topics));
-          }
-          if (Array.isArray(payload.actionItems)) {
-            setActionItems(payload.actionItems);
-            localStorage.setItem(`socio_sync_${targetWs}_actions_v3`, JSON.stringify(payload.actionItems));
-          }
-          if (Array.isArray(payload.ideas)) {
-            setIdeas(payload.ideas);
-            localStorage.setItem(`socio_sync_${targetWs}_ideas_v3`, JSON.stringify(payload.ideas));
-          }
-
-          // Clean URL query parameters
-          const cleanUrl = window.location.origin + window.location.pathname;
-          window.history.replaceState({}, document.title, cleanUrl);
-        }
-      }
-    } catch(e) {
-      console.warn('URL Import error:', e);
-    }
-  }, []);
-
-  // Initialize PeerJS Live WebRTC Sync for current workspace
-  useEffect(() => {
-    initPeerSync(workspaceId, (receivedPayload) => {
-      if (!receivedPayload) return;
-      if (receivedPayload.pin !== undefined) {
-        setWorkspacePinState(receivedPayload.pin);
-        localStorage.setItem(`socio_sync_${workspaceId}_pin`, receivedPayload.pin || '');
-      }
-      if (receivedPayload.partners) setPartners(receivedPayload.partners);
-      if (receivedPayload.dailySchedule) setDailySchedule(receivedPayload.dailySchedule);
-      if (receivedPayload.meetings) setMeetings(receivedPayload.meetings);
-      if (receivedPayload.topics) setTopics(receivedPayload.topics);
-      if (receivedPayload.actionItems) setActionItems(receivedPayload.actionItems);
-      if (receivedPayload.ideas) setIdeas(receivedPayload.ideas);
-      setSyncStatus('connected');
-    });
-  }, [workspaceId]);
-
-  // Sync back to local storage per workspace
-  useEffect(() => {
-    localStorage.setItem(`socio_sync_${workspaceId}_partners_v3`, JSON.stringify(partners));
-    if (currentUser && partners && partners.length > 0) {
-      const active = partners.find(p => p.id === currentUser.id);
-      if (active && (active.name !== currentUser.name || active.role !== currentUser.role || active.avatar !== currentUser.avatar)) {
-        setCurrentUser(active);
-      }
-    }
-  }, [partners, currentUser, workspaceId]);
-
-  useEffect(() => {
-    localStorage.setItem(`socio_sync_${workspaceId}_user_v3`, JSON.stringify(currentUser));
-  }, [currentUser, workspaceId]);
-
-  useEffect(() => {
-    localStorage.setItem(`socio_sync_${workspaceId}_schedule_v3`, JSON.stringify(dailySchedule));
-  }, [dailySchedule, workspaceId]);
-
-  useEffect(() => {
-    localStorage.setItem(`socio_sync_${workspaceId}_meetings_v3`, JSON.stringify(meetings));
-  }, [meetings, workspaceId]);
-
-  useEffect(() => {
-    localStorage.setItem(`socio_sync_${workspaceId}_topics_v3`, JSON.stringify(topics));
-  }, [topics, workspaceId]);
-
-  useEffect(() => {
-    localStorage.setItem(`socio_sync_${workspaceId}_actions_v3`, JSON.stringify(actionItems));
-  }, [actionItems, workspaceId]);
-
-  useEffect(() => {
-    localStorage.setItem(`socio_sync_${workspaceId}_ideas_v3`, JSON.stringify(ideas));
-  }, [ideas, workspaceId]);
-
-  // PUSH LOCAL STATE TO OWN VERCEL SERVERLESS BACKEND & WEBRTC PEERS
-  const pushToCloud = useCallback(async (customPayload) => {
-    const fullState = {
-      workspaceId,
-      pin: customPayload?.pin !== undefined ? customPayload.pin : workspacePin,
-      partners: customPayload?.partners || partners,
-      dailySchedule: customPayload?.dailySchedule || dailySchedule,
-      meetings: customPayload?.meetings || meetings,
-      topics: customPayload?.topics || topics,
-      actionItems: customPayload?.actionItems || actionItems,
-      ideas: customPayload?.ideas || ideas
-    };
-
-    // Broadcast to WebRTC Peers
-    broadcastPeerState(fullState);
-
-    try {
-      setSyncStatus('syncing');
-      isPerformingLocalMutation.current = true;
-      const now = Date.now();
-      lastSyncedCloudTs.current = now;
-
-      const payload = {
-        workspaceId,
-        name: `socio_sync_workspace_${workspaceId}`,
-        data: {
-          ts: now,
-          ...fullState
-        }
-      };
-
-      const syncUrl = getSyncEndpoint(workspaceId);
-      await fetch(syncUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      setSyncStatus('connected');
-      const timeStr = new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      setLastSyncTime(timeStr);
-    } catch (e) {
-      console.warn('Cloud push warning:', e);
-      setSyncStatus('connected');
-    } finally {
-      setTimeout(() => {
-        isPerformingLocalMutation.current = false;
-      }, 500);
-    }
-  }, [workspaceId, workspacePin, partners, dailySchedule, meetings, topics, actionItems, ideas]);
-
-  // PULL CLOUD STATE FROM OWN VERCEL SERVERLESS BACKEND
-  const pullFromCloud = useCallback(async (force = false) => {
-    if (isPerformingLocalMutation.current && !force) return;
-
-    try {
-      const syncUrl = getSyncEndpoint(workspaceId);
-      const res = await fetch(syncUrl, { cache: 'no-store' });
-      if (!res.ok) return;
-      const result = await res.json();
-      const data = result?.data;
-
-      if (data && data.ts) {
-        if (data.ts !== lastSyncedCloudTs.current || force) {
-          lastSyncedCloudTs.current = data.ts;
-
-          if (data.pin !== undefined) {
-            const cloudPin = data.pin || '';
-            setWorkspacePinState(cloudPin);
-            localStorage.setItem(`socio_sync_${workspaceId}_pin`, cloudPin);
-            if (cloudPin) {
-              const unlocked = sessionStorage.getItem(`socio_sync_${workspaceId}_unlocked`);
-              if (unlocked !== 'true') {
-                setIsLocked(true);
-              }
-            }
-          }
-          if (data.partners && data.partners.length > 0) setPartners(data.partners);
-          if (data.dailySchedule) setDailySchedule(data.dailySchedule);
-          if (data.meetings && data.meetings.length > 0) setMeetings(prev => mergeItemsById(data.meetings, prev));
-          if (Array.isArray(data.topics)) setTopics(prev => mergeItemsById(data.topics, prev));
-          if (Array.isArray(data.actionItems)) setActionItems(prev => mergeItemsById(data.actionItems, prev));
-          if (Array.isArray(data.ideas)) setIdeas(prev => mergeItemsById(data.ideas, prev));
-
-          setSyncStatus('connected');
-          const timeStr = new Date(data.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          setLastSyncTime(timeStr);
-        }
-      }
-    } catch (e) {
-      setSyncStatus('connected');
-    }
-  }, [workspaceId]);
-
-  // Poll Vercel Serverless Sync API every 2 seconds
-  useEffect(() => {
-    pullFromCloud(true);
-    const timer = setInterval(() => {
-      pullFromCloud(false);
-    }, 2000);
-    return () => clearInterval(timer);
-  }, [pullFromCloud]);
-
-  // User Actions
+  // ─── User / Partner actions ────────────────────────────────────────
   const updatePartners = (newPartners) => {
     setPartners(newPartners);
-    if (currentUser) {
-      const active = newPartners.find(p => p.id === currentUser.id);
-      if (active) setCurrentUser(active);
-    }
+    const active = newPartners.find(p => p.id === currentUser?.id);
+    if (active) setCurrentUser(active);
     pushToCloud({ partners: newPartners });
   };
 
   const updatePartner = (partnerId, updates) => {
-    setPartners(prev => {
-      const updated = prev.map(p => p.id === partnerId ? { ...p, ...updates } : p);
-      if (currentUser && currentUser.id === partnerId) {
-        const active = updated.find(p => p.id === partnerId);
-        if (active) setCurrentUser(active);
-      }
-      pushToCloud({ partners: updated });
-      return updated;
-    });
+    const updated = partners.map(p => p.id === partnerId ? { ...p, ...updates } : p);
+    setPartners(updated);
+    if (currentUser?.id === partnerId) {
+      const active = updated.find(p => p.id === partnerId);
+      if (active) setCurrentUser(active);
+    }
+    pushToCloud({ partners: updated });
   };
 
   const switchUser = (partnerId) => {
@@ -498,13 +439,14 @@ export const AppProvider = ({ children }) => {
     if (partner) setCurrentUser(partner);
   };
 
+  // ─── Schedule ──────────────────────────────────────────────────────
   const updateSchedule = (newSchedule) => {
     const updatedSched = { ...dailySchedule, ...newSchedule };
     setDailySchedule(updatedSched);
     let updatedMeetings = meetings;
     if (newSchedule.defaultHour || newSchedule.meetUrl) {
-      updatedMeetings = meetings.map(m => m.id === activeMeetingId ? { 
-        ...m, 
+      updatedMeetings = meetings.map(m => m.id === activeMeetingId ? {
+        ...m,
         time: newSchedule.defaultHour || m.time,
         meetUrl: newSchedule.meetUrl || m.meetUrl
       } : m);
@@ -513,6 +455,7 @@ export const AppProvider = ({ children }) => {
     pushToCloud({ dailySchedule: updatedSched, meetings: updatedMeetings });
   };
 
+  // ─── Meetings ──────────────────────────────────────────────────────
   const shiftMeetingTime = (meetingId, minutesDelta) => {
     const updatedMeetings = meetings.map(m => {
       if (m.id === meetingId) {
@@ -549,6 +492,7 @@ export const AppProvider = ({ children }) => {
     return meeting;
   };
 
+  // ─── Topics ────────────────────────────────────────────────────────
   const addTopic = (newTopic) => {
     const topic = {
       id: `topic-${Date.now()}`,
@@ -579,16 +523,12 @@ export const AppProvider = ({ children }) => {
       text: commentText,
       timestamp: 'Justo ahora'
     };
-    const updated = topics.map(t => {
-      if (t.id === topicId) {
-        return { ...t, comments: [...t.comments, comment] };
-      }
-      return t;
-    });
+    const updated = topics.map(t => t.id === topicId ? { ...t, comments: [...(t.comments || []), comment] } : t);
     setTopics(updated);
     pushToCloud({ topics: updated });
   };
 
+  // ─── Action Items ──────────────────────────────────────────────────
   const addActionItem = (newItem) => {
     const assignedPartner = partners.find(p => p.id === newItem.assignedTo);
     const item = {
@@ -622,16 +562,12 @@ export const AppProvider = ({ children }) => {
       text: commentText,
       timestamp: 'Justo ahora'
     };
-    const updated = actionItems.map(a => {
-      if (a.id === actionId) {
-        return { ...a, comments: [...a.comments, comment] };
-      }
-      return a;
-    });
+    const updated = actionItems.map(a => a.id === actionId ? { ...a, comments: [...(a.comments || []), comment] } : a);
     setActionItems(updated);
     pushToCloud({ actionItems: updated });
   };
 
+  // ─── Ideas ─────────────────────────────────────────────────────────
   const addIdea = (newIdea) => {
     const idea = {
       id: `idea-${Date.now()}`,
@@ -652,10 +588,10 @@ export const AppProvider = ({ children }) => {
   const toggleVoteIdea = (ideaId) => {
     const updated = ideas.map(i => {
       if (i.id === ideaId) {
-        const hasVoted = i.votes.includes(currentUser.id);
+        const hasVoted = (i.votes || []).includes(currentUser.id);
         const updatedVotes = hasVoted
           ? i.votes.filter(id => id !== currentUser.id)
-          : [...i.votes, currentUser.id];
+          : [...(i.votes || []), currentUser.id];
         return { ...i, votes: updatedVotes };
       }
       return i;
@@ -672,12 +608,7 @@ export const AppProvider = ({ children }) => {
       text: commentText,
       timestamp: 'Justo ahora'
     };
-    const updated = ideas.map(i => {
-      if (i.id === ideaId) {
-        return { ...i, comments: [...i.comments, comment] };
-      }
-      return i;
-    });
+    const updated = ideas.map(i => i.id === ideaId ? { ...i, comments: [...(i.comments || []), comment] } : i);
     setIdeas(updated);
     pushToCloud({ ideas: updated });
   };
@@ -685,21 +616,19 @@ export const AppProvider = ({ children }) => {
   const convertIdeaToTopic = (ideaId, meetingId) => {
     const idea = ideas.find(i => i.id === ideaId);
     if (!idea) return;
-
     addTopic({
       meetingId: meetingId || activeMeetingId,
       title: `💡 [Idea] ${idea.title}`,
       description: idea.description,
       priority: 'Media'
     });
-
     const updatedIdeas = ideas.map(i => i.id === ideaId ? { ...i, status: 'Llevada a Reunión' } : i);
     setIdeas(updatedIdeas);
     pushToCloud({ ideas: updatedIdeas });
   };
 
+  // ─── Clear data ────────────────────────────────────────────────────
   const clearAllData = () => {
-    localStorage.clear();
     const initialMeetings = [{
       id: 'meet-initial',
       title: 'Reunión Diaria de Sincronización',
@@ -715,11 +644,16 @@ export const AppProvider = ({ children }) => {
     setActionItems([]);
     setIdeas([]);
     setActiveMeetingId('meet-initial');
+    saveWorkspaceToLocal(workspaceId, {
+      meetings: initialMeetings, topics: [], actionItems: [], ideas: []
+    });
     pushToCloud({ meetings: initialMeetings, topics: [], actionItems: [], ideas: [] });
   };
 
   const manualSyncNow = () => {
-    pullFromCloud(true);
+    lastCloudTs.current = 0;
+    isMutating.current = false;
+    pullFromCloudForWorkspace(activeWsRef.current);
   };
 
   return (
