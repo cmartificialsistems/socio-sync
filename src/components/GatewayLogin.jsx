@@ -58,17 +58,21 @@ export const GatewayLogin = () => {
 
       if (requiredPin) {
         if (enteredPin === requiredPin) {
-          // Store the verified cloud pin locally and unlock
+          // Store the verified cloud pin locally — do NOT push to cloud here,
+          // because pushToCloud inside updateWorkspacePin would send stale
+          // React state (from the previous workspace) before the new one loads.
           if (cloudPin) {
             localStorage.setItem(`ss_${cleanWsId}_pin`, cloudPin);
           }
-          updateWorkspacePin(requiredPin);
+          // Directly update the in-context PIN state without triggering a push
+          // by calling unlockWorkspace which uses the already-correct workspacePin.
+          // We sync the local PIN state via the next cloud pull (already scheduled).
           unlockWorkspace(requiredPin);
         } else {
           setErrorMsg(`PIN incorrecto para la sesión "${cleanWsId}".`);
         }
       } else {
-        // No PIN set - create one if provided, otherwise just unlock
+        // No PIN set — if user typed one, create it; otherwise just unlock
         if (enteredPin) {
           updateWorkspacePin(enteredPin);
         }
