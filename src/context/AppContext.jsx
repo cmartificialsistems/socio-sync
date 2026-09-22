@@ -34,7 +34,7 @@ const TODAY = new Date().toISOString().split('T')[0];
 
 const getSyncEndpoint = (wsId) => {
   const base = typeof window !== 'undefined' && window.location.origin ? `${window.location.origin}/api/sync` : '/api/sync';
-  return `${base}?workspaceId=${encodeURIComponent(wsId || 'colombia')}`;
+  return `${base}?workspaceId=${encodeURIComponent(wsId || 'colombia')}&_t=${Date.now()}`;
 };
 
 // Deep Data Recovery Engine across all localStorage key versions
@@ -462,12 +462,12 @@ export const AppProvider = ({ children }) => {
     }
   }, [workspaceId]);
 
-  // Poll Vercel Serverless Sync API every 3 seconds
+  // Poll Vercel Serverless Sync API every 2 seconds
   useEffect(() => {
     pullFromCloud(true);
     const timer = setInterval(() => {
       pullFromCloud(false);
-    }, 3000);
+    }, 2000);
     return () => clearInterval(timer);
   }, [pullFromCloud]);
 

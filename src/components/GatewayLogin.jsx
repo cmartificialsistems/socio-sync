@@ -1,49 +1,82 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Lock, KeyRound, Layers, ArrowRight, ShieldCheck, Plus, Check } from 'lucide-react';
+import { Lock, KeyRound, Layers, ArrowRight, RefreshCw } from 'lucide-react';
 
 export const GatewayLogin = () => {
-  const { workspaceId, switchWorkspace, unlockWorkspace, workspacePin, updateWorkspacePin, partners } = useApp();
+  const { workspaceId, switchWorkspace, unlockWorkspace, workspacePin, updateWorkspacePin } = useApp();
   
   const [targetWorkspace, setTargetWorkspace] = useState(workspaceId || 'colombia');
   const [inputPin, setInputPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [newPinSetup, setNewPinSetup] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  const handleLoginSubmit = (e) => {
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
     const cleanWsId = targetWorkspace.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
     if (!cleanWsId) return;
 
-    // Switch to target workspace first if different
-    if (cleanWsId !== workspaceId) {
-      switchWorkspace(cleanWsId);
-    }
+    setIsVerifying(true);
 
-    // Check PIN requirement
-    if (isCreatingNew) {
-      if (newPinSetup && newPinSetup.trim().length >= 4) {
-        updateWorkspacePin(newPinSetup.trim());
+    try {
+      // Switch workspace context first
+      if (cleanWsId !== workspaceId) {
+        switchWorkspace(cleanWsId);
       }
-      unlockWorkspace(newPinSetup.trim());
-      return;
-    }
 
-    // Existing workspace PIN check
-    if (workspacePin) {
-      const success = unlockWorkspace(inputPin);
-      if (!success) {
-        setErrorMsg('Clave PIN incorrecta para este espacio.');
+      if (isCreatingNew) {
+        const setupPin = newPinSetup.trim();
+        if (setupPin && setupPin.length >= 4) {
+          updateWorkspacePin(setupPin);
+        }
+        unlockWorkspace(setupPin);
+        setIsVerifying(false);
+        return;
       }
-    } else {
-      // If workspace has no PIN set yet
-      if (inputPin) {
-        updateWorkspacePin(inputPin);
+
+      // Fetch fresh cloud pin from serverless DB with anti-cache timestamp
+      let cloudPin = '';
+      try {
+        const syncUrl = typeof window !== 'undefined' && window.location.origin 
+          ? `${window.location.origin}/api/sync?workspaceId=${encodeURIComponent(cleanWsId)}&_t=${Date.now()}`
+          : `/api/sync?workspaceId=${encodeURIComponent(cleanWsId)}&_t=${Date.now()}`;
+
+        const res = await fetch(syncUrl, { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.data?.pin) {
+            cloudPin = String(json.data.pin).trim();
+          }
+        }
+      } catch (err) {}
+
+      // Fallback to local storage PIN
+      const localPin = (localStorage.getItem(`socio_sync_${cleanWsId}_pin`) || workspacePin || '').trim();
+      const requiredPin = cloudPin || localPin;
+
+      const enteredPin = inputPin.trim();
+
+      if (requiredPin) {
+        if (enteredPin === requiredPin) {
+          updateWorkspacePin(requiredPin);
+          unlockWorkspace(requiredPin);
+        } else {
+          setErrorMsg(`Clave PIN incorrecta para la sesión "${cleanWsId}".`);
+        }
+      } else {
+        // If workspace has no PIN set yet
+        if (enteredPin) {
+          updateWorkspacePin(enteredPin);
+        }
+        unlockWorkspace(enteredPin);
       }
-      unlockWorkspace(inputPin);
+    } catch (err) {
+      unlockWorkspace(inputPin.trim());
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -80,8 +113,8 @@ export const GatewayLogin = () => {
               required
               value={targetWorkspace}
               onChange={(e) => setTargetWorkspace(e.target.value)}
-              placeholder="Ej: colombia, empresa-2, socio-juan"
-              className="w-full bg-[#F9F7F2] border border-[#E6E0D4] rounded-2xl px-4 py-3 text-xs text-[#1C1B1A] font-bold focus:outline-none focus:border-[#D95338] transition-all"
+              placeholder="Ej: colombia, usa, empresa-2"
+              className="w-full bg-[#F9F7F2] border border-[#E6E0D4] rounded-2xl px-4 py-3 text-xs text-[#1C1B1A] font-bold focus:outline-none focus:border-[#D95338] transition-all capitalize"
             />
           </div>
 
@@ -109,10 +142,20 @@ export const GatewayLogin = () => {
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-[#D95338] hover:bg-[#C84B31] text-white font-extrabold text-xs rounded-2xl shadow-md shadow-[#D95338]/20 transition-all flex items-center justify-center gap-2"
+            disabled={isVerifying}
+            className="w-full py-3.5 bg-[#D95338] hover:bg-[#C84B31] text-white font-extrabold text-xs rounded-2xl shadow-md shadow-[#D95338]/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            <span>{isCreatingNew ? 'Crear e Ingresar a Nueva Sesión' : 'Ingresar a la Sesión Privada'}</span>
-            <ArrowRight className="w-4 h-4" />
+            {isVerifying ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                <span>Verificando Clave en Nube...</span>
+              </>
+            ) : (
+              <>
+                <span>{isCreatingNew ? 'Crear e Ingresar a Nueva Sesión' : 'Ingresar a la Sesión Privada'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
         </form>
 

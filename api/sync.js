@@ -12,7 +12,7 @@ async function getMasterIndex() {
     return globalThis.socioSyncMasterIndex;
   }
   try {
-    const res = await fetch('https://api.restful-api.dev/objects/' + MASTER_INDEX_ID);
+    const res = await fetch('https://api.restful-api.dev/objects/' + MASTER_INDEX_ID, { cache: 'no-store' });
     if (res.ok) {
       const doc = await res.json();
       globalThis.socioSyncMasterIndex = doc.data?.workspaces || {};
@@ -41,6 +41,12 @@ export default async function handler(req, res) {
     'Access-Control-Allow-Headers',
     'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
   );
+
+  // Enforce zero caching across CDN, Edge proxies, Vercel edge, and browser caches
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0, s-maxage=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -98,7 +104,7 @@ export default async function handler(req, res) {
       const masterIndex = await getMasterIndex();
       const docId = masterIndex[workspaceId];
       if (docId) {
-        const cloudRes = await fetch('https://api.restful-api.dev/objects/' + docId);
+        const cloudRes = await fetch('https://api.restful-api.dev/objects/' + docId, { cache: 'no-store' });
         if (cloudRes.ok) {
           const doc = await cloudRes.json();
           let cloudPayload = doc.data;
