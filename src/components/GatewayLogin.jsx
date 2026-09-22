@@ -32,7 +32,7 @@ export const GatewayLogin = () => {
         if (setupPin && setupPin.length >= 4) {
           updateWorkspacePin(setupPin);
         }
-        unlockWorkspace(setupPin);
+        unlockWorkspace(setupPin, cleanWsId);
         setIsVerifying(false);
         return;
       }
@@ -67,7 +67,7 @@ export const GatewayLogin = () => {
           // Directly update the in-context PIN state without triggering a push
           // by calling unlockWorkspace which uses the already-correct workspacePin.
           // We sync the local PIN state via the next cloud pull (already scheduled).
-          unlockWorkspace(requiredPin);
+          unlockWorkspace(requiredPin, cleanWsId);
         } else {
           setErrorMsg(`PIN incorrecto para la sesión "${cleanWsId}".`);
         }
@@ -76,11 +76,11 @@ export const GatewayLogin = () => {
         if (enteredPin) {
           updateWorkspacePin(enteredPin);
         }
-        unlockWorkspace(enteredPin);
+        unlockWorkspace(enteredPin, cleanWsId);
       }
     } catch (err) {
       // Failsafe: try local unlock
-      unlockWorkspace(String(inputPin).trim());
+      unlockWorkspace(String(inputPin).trim(), cleanWsId);
     } finally {
       setIsVerifying(false);
     }

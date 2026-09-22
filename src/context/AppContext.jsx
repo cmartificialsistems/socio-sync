@@ -389,19 +389,23 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ─── PIN / Lock actions ────────────────────────────────────────────
-  const unlockWorkspace = (inputPin) => {
-    if (!workspacePin || String(inputPin).trim() === String(workspacePin).trim()) {
+  const unlockWorkspace = (inputPin, targetWsId = null) => {
+    const wsId = targetWsId || activeWsRef.current;
+    const currentPin = String(localStorage.getItem(`ss_${wsId}_pin`) || workspacePin || '').trim();
+    if (!currentPin || String(inputPin).trim() === currentPin) {
       setIsLocked(false);
-      sessionStorage.setItem(`ss_${workspaceId}_unlocked`, 'true');
+      sessionStorage.setItem(`ss_${wsId}_unlocked`, 'true');
       return true;
     }
     return false;
   };
 
-  const lockWorkspace = () => {
-    if (workspacePin) {
+  const lockWorkspace = (targetWsId = null) => {
+    const wsId = targetWsId || activeWsRef.current;
+    const pin = String(localStorage.getItem(`ss_${wsId}_pin`) || workspacePin || '').trim();
+    if (pin) {
       setIsLocked(true);
-      sessionStorage.removeItem(`ss_${workspaceId}_unlocked`);
+      sessionStorage.removeItem(`ss_${wsId}_unlocked`);
     }
   };
 
