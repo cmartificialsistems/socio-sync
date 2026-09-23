@@ -12,6 +12,8 @@ export const ActionItems = () => {
     currentUser, 
     partners 
   } = useApp();
+  const safeCurrentUser = currentUser || partners[0] || { id: 'socio_1', name: 'Socio 1', avatar: '👤' };
+  const safeOtherPartner = partners.find(p => p && p.id !== safeCurrentUser.id) || partners[1] || { id: 'socio_2', name: 'Socio 2', avatar: '👤' };
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [filterAssignee, setFilterAssignee] = useState('todos');
@@ -20,25 +22,23 @@ export const ActionItems = () => {
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [assignedTo, setAssignedTo] = useState(currentUser.id);
+  const [assignedTo, setAssignedTo] = useState(safeCurrentUser.id);
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [priority, setPriority] = useState('Media');
 
-  const otherPartner = partners.find(p => p.id !== currentUser.id) || partners[1];
-
-  const filteredItems = actionItems.filter(item => {
+  const filteredItems = (actionItems || []).filter(item => {
     if (filterAssignee === 'mis') {
-      if (item.assignedTo !== currentUser.id && item.assignedTo !== 'ambos') return false;
+      if (item.assignedTo !== safeCurrentUser.id && item.assignedTo !== 'ambos') return false;
     } else if (filterAssignee === 'socio') {
-      if (item.assignedTo !== otherPartner.id && item.assignedTo !== 'ambos') return false;
+      if (item.assignedTo !== safeOtherPartner.id && item.assignedTo !== 'ambos') return false;
     }
     if (filterStatus === 'pendientes') return item.status !== 'Completada';
     if (filterStatus === 'completadas') return item.status === 'Completada';
     return true;
   });
 
-  const myTasks = filteredItems.filter(i => i.assignedTo === currentUser.id || i.assignedTo === 'ambos');
-  const socioTasks = filteredItems.filter(i => i.assignedTo === otherPartner.id || i.assignedTo === 'ambos');
+  const myTasks = filteredItems.filter(i => i.assignedTo === safeCurrentUser.id || i.assignedTo === 'ambos');
+  const socioTasks = filteredItems.filter(i => i.assignedTo === safeOtherPartner.id || i.assignedTo === 'ambos');
 
   const handleCreateAction = (e) => {
     e.preventDefault();
@@ -178,7 +178,7 @@ export const ActionItems = () => {
           <div className="bg-[#FAF8F5] rounded-2xl border border-[#E6E0D4] p-4 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-[#E6E0D4]">
               <h3 className="font-display text-xs font-bold text-[#D95338] uppercase tracking-wider flex items-center gap-1.5">
-                <span>{currentUser.avatar}</span>
+                <span>{safeCurrentUser.avatar}</span>
                 <span>Tus Compromisos ({myTasks.filter(t => t.status !== 'Completada').length})</span>
               </h3>
             </div>
@@ -195,8 +195,8 @@ export const ActionItems = () => {
           <div className="bg-[#FAF8F5] rounded-2xl border border-[#E6E0D4] p-4 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-[#E6E0D4]">
               <h3 className="font-display text-xs font-bold text-[#2E5A44] uppercase tracking-wider flex items-center gap-1.5">
-                <span>{otherPartner.avatar}</span>
-                <span>Compromisos de {otherPartner.name.split(' ')[0]} ({socioTasks.filter(t => t.status !== 'Completada').length})</span>
+                <span>{safeOtherPartner.avatar}</span>
+                <span>Compromisos de {safeOtherPartner.name?.split(' ')[0]} ({socioTasks.filter(t => t.status !== 'Completada').length})</span>
               </h3>
             </div>
             <div className="space-y-3">
