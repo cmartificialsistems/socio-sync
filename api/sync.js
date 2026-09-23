@@ -56,37 +56,32 @@ export default async function handler(req, res) {
       const targetRoom = payload.workspaceId || workspaceId;
       const dataToSave = payload.data || payload;
       
-      // Update in-memory fast cache
       globalThis.socioSyncStore[targetRoom] = dataToSave;
 
-      // Save to persistent cloud REST backend
       const masterIndex = await getMasterIndex();
-      let docId = masterIndex[targetRoom];
-
-      if (docId) {
-        try {
-          const putRes = await fetch('https://api.restful-api.dev/objects/' + docId, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: 'socio_sync_' + targetRoom, data: dataToSave })
-          });
-          if (putRes.ok) {
-            return res.status(200).json({ success: true, workspaceId: targetRoom, ts: dataToSave?.ts || Date.now() });
-          }
-        } catch (e) {}
+      
+      const strPayload = JSON.stringify(dataToSave);
+      const CHUNK_SIZE = 800;
+      let nextId = null;
+      
+      // Build linked list backwards
+      for (let i = strPayload.length; i > 0; i -= CHUNK_SIZE) {
+        const start = Math.max(0, i - CHUNK_SIZE);
+        const chunkStr = strPayload.substring(start, i);
+        
+        const createRes = await fetch('https://api.restful-api.dev/objects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: `socio_sync_chunk`, data: { c: chunkStr, n: nextId } })
+        });
+        const doc = await createRes.json();
+        if (doc && doc.id) {
+          nextId = doc.id;
+        }
       }
 
-      // Create new doc if missing or update failed
-      const createRes = await fetch('https://api.restful-api.dev/objects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'socio_sync_' + targetRoom, data: dataToSave })
-      });
-      const newDoc = await createRes.json();
-      if (newDoc.id) {
-        masterIndex[targetRoom] = newDoc.id;
-        await saveMasterIndex(masterIndex);
-      }
+      masterIndex[targetRoom] = nextId; // Store only the HEAD
+      await saveMasterIndex(masterIndex);
 
       return res.status(200).json({ success: true, workspaceId: targetRoom, ts: dataToSave?.ts || Date.now() });
     } catch (e) {
@@ -95,27 +90,34 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    // 1. Try persistent cloud REST backend first
     try {
       const masterIndex = await getMasterIndex();
-      const docId = masterIndex[workspaceId];
-      if (docId) {
-        const cloudRes = await fetch('https://api.restful-api.dev/objects/' + docId, { cache: 'no-store' });
-        if (cloudRes.ok) {
-          const doc = await cloudRes.json();
-          let cloudPayload = doc.data;
-          if (cloudPayload && cloudPayload.data && cloudPayload.data.ts) {
-            cloudPayload = cloudPayload.data;
-          }
-          if (cloudPayload) {
-            globalThis.socioSyncStore[workspaceId] = cloudPayload;
-            return res.status(200).json({ data: cloudPayload });
-          }
+      let currentId = masterIndex[workspaceId];
+      if (typeof currentId === 'string') {
+        let fullStr = '';
+        let safety = 0;
+        
+        // Traverse linked list
+        while (currentId && safety < 50) {
+          safety++;
+          const cloudRes = await fetch('https://api.restful-api.dev/objects/' + currentId, { cache: 'no-store' });
+          if (cloudRes.ok) {
+            const doc = await cloudRes.json();
+            if (doc.data) {
+              if (doc.data.c) fullStr += doc.data.c;
+              currentId = doc.data.n || null;
+            } else break;
+          } else break;
+        }
+        
+        if (fullStr) {
+          const cloudPayload = JSON.parse(fullStr);
+          globalThis.socioSyncStore[workspaceId] = cloudPayload;
+          return res.status(200).json({ data: cloudPayload });
         }
       }
     } catch (e) {}
 
-    // 2. Fallback to fast in-memory cache
     const cached = globalThis.socioSyncStore[workspaceId] || null;
     return res.status(200).json({ data: cached?.data || cached || null });
   }
