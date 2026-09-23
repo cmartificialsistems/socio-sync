@@ -94,7 +94,9 @@ export const AppProvider = ({ children }) => {
   const initWs = loadWorkspaceFromLocal(workspaceId);
 
   const [partners, setPartners] = useState(initWs.partners);
-  const [currentUser, setCurrentUser] = useState(initWs.user);
+  const [currentUser, setCurrentUser] = useState(() => {
+    return (initWs.user && initWs.user.id) ? initWs.user : (initWs.partners?.[0] || DEFAULT_PARTNERS[0]);
+  });
   const [dailySchedule, setDailySchedule] = useState(initWs.schedule);
   const [meetings, setMeetings] = useState(initWs.meetings);
   const [topics, setTopics] = useState(initWs.topics);
@@ -136,7 +138,9 @@ export const AppProvider = ({ children }) => {
   }, [partners, workspaceId]);
 
   useEffect(() => {
-    saveWorkspaceToLocal(workspaceId, { user: currentUser });
+    if (currentUser && currentUser.id) {
+      saveWorkspaceToLocal(workspaceId, { user: currentUser });
+    }
   }, [currentUser, workspaceId]);
 
   useEffect(() => {
@@ -161,7 +165,16 @@ export const AppProvider = ({ children }) => {
 
   // ─── Load a full workspace state into React state ────────────────
   const applyWorkspaceState = useCallback((wsData) => {
-    if (wsData.partners && wsData.partners.length > 0) setPartners(wsData.partners);
+    if (wsData.partners && wsData.partners.length > 0) {
+      setPartners(wsData.partners);
+      setCurrentUser(prev => {
+        if (prev && prev.id) {
+          const updated = wsData.partners.find(p => p.id === prev.id);
+          if (updated) return updated;
+        }
+        return wsData.partners[0];
+      });
+    }
     if (wsData.dailySchedule) setDailySchedule(wsData.dailySchedule);
     if (wsData.meetings && wsData.meetings.length > 0) {
       setMeetings(wsData.meetings);
@@ -200,7 +213,8 @@ export const AppProvider = ({ children }) => {
     // Load new workspace state from localStorage immediately (fast UI)
     const newWsData = loadWorkspaceFromLocal(cleanId);
     setPartners(newWsData.partners);
-    setCurrentUser(newWsData.user || newWsData.partners[0] || DEFAULT_PARTNERS[0]);
+    const validUser = (newWsData.user && newWsData.user.id) ? newWsData.user : (newWsData.partners?.[0] || DEFAULT_PARTNERS[0]);
+    setCurrentUser(validUser);
     setDailySchedule(newWsData.schedule);
     setMeetings(newWsData.meetings);
     setTopics(newWsData.topics);
