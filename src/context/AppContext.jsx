@@ -253,7 +253,7 @@ export const AppProvider = ({ children }) => {
       ts: Date.now()
     };
 
-    // Broadcast to WebRTC peers
+    // Broadcast to WebRTC peers (fallback/redundancy)
     broadcastPeerState(fullState);
 
     try {
@@ -261,11 +261,10 @@ export const AppProvider = ({ children }) => {
       isMutating.current = true;
       lastCloudTs.current = fullState.ts;
 
-      await fetch(getSyncUrl(wsId), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId: wsId, data: fullState })
-      });
+      // FIREBASE: Set data in Realtime Database
+      const { db } = await import('../firebase');
+      const { ref, set } = await import('firebase/database');
+      await set(ref(db, `workspaces/${wsId}`), fullState);
 
       setSyncStatus('connected');
       const timeStr = new Date(fullState.ts).toLocaleTimeString([], {
@@ -280,17 +279,16 @@ export const AppProvider = ({ children }) => {
     }
   }, [workspacePin, partners, dailySchedule, meetings, topics, actionItems, ideas]);
 
-  // ─── Pull from Cloud for a specific workspace ─────────────────────
+  // ─── Pull from Cloud for a specific workspace (Fallback manual pull)
   const pullFromCloudForWorkspace = async (wsId) => {
     try {
-      const res = await fetch(getSyncUrl(wsId), { cache: 'no-store' });
-      if (!res.ok) return;
-      const result = await res.json();
-      const data = result?.data;
-
+      const { db } = await import('../firebase');
+      const { ref, get } = await import('firebase/database');
+      const snapshot = await get(ref(db, `workspaces/${wsId}`));
+      if (!snapshot.exists()) return;
+      const data = snapshot.val();
+      
       if (!data || !data.ts) return;
-
-      // CRITICAL: only apply if this response is for the CURRENTLY ACTIVE workspace
       if (activeWsRef.current !== wsId) return;
 
       if (data.pin !== undefined) {
@@ -312,7 +310,6 @@ export const AppProvider = ({ children }) => {
       });
       setLastSyncTime(timeStr);
 
-      // Also persist to localStorage
       saveWorkspaceToLocal(wsId, {
         partners: data.partners,
         schedule: data.dailySchedule,
@@ -327,22 +324,67 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // ─── Regular Pull (polling) ────────────────────────────────────────
   const pullFromCloud = useCallback(async (force = false) => {
     if (isMutating.current && !force) return;
     await pullFromCloudForWorkspace(activeWsRef.current);
   }, [applyWorkspaceState]);
 
-  // ─── Poll every 3 seconds ──────────────────────────────────────────
+  // ─── Firebase Real-time Listener ──────────────────────────────────
   useEffect(() => {
-    // Always force-pull on first mount or workspace change
-    pullFromCloudForWorkspace(workspaceId);
-    const timer = setInterval(() => {
-      if (!isMutating.current) {
-        pullFromCloudForWorkspace(activeWsRef.current);
-      }
-    }, 3000);
-    return () => clearInterval(timer);
+    let unsubscribe = null;
+    let isMounted = true;
+
+    const setupFirebaseListener = async () => {
+      const { db } = await import('../firebase');
+      const { ref, onValue } = await import('firebase/database');
+      
+      const wsRef = ref(db, `workspaces/${workspaceId}`);
+      unsubscribe = onValue(wsRef, (snapshot) => {
+        if (!isMounted || isMutating.current) return;
+        
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          if (activeWsRef.current !== data.workspaceId) return;
+
+          if (data.pin !== undefined) {
+            const cloudPin = String(data.pin || '').trim();
+            setWorkspacePinState(cloudPin);
+            localStorage.setItem(`ss_${workspaceId}_pin`, cloudPin);
+            if (cloudPin) {
+              const unlocked = sessionStorage.getItem(`ss_${workspaceId}_unlocked`);
+              if (unlocked !== 'true') setIsLocked(true);
+            }
+          }
+
+          applyWorkspaceState(data);
+          lastCloudTs.current = data.ts;
+
+          setSyncStatus('connected');
+          const timeStr = new Date(data.ts).toLocaleTimeString([], {
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+          });
+          setLastSyncTime(timeStr);
+
+          // Persist to local
+          saveWorkspaceToLocal(workspaceId, {
+            partners: data.partners,
+            schedule: data.dailySchedule,
+            meetings: data.meetings,
+            topics: data.topics,
+            actionItems: data.actionItems,
+            ideas: data.ideas,
+            pin: data.pin !== undefined ? String(data.pin || '') : undefined
+          });
+        }
+      });
+    };
+
+    setupFirebaseListener();
+
+    return () => {
+      isMounted = false;
+      if (unsubscribe) unsubscribe();
+    };
   }, [workspaceId]);
 
   // ─── PeerJS WebRTC Sync ────────────────────────────────────────────
