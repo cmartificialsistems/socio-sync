@@ -30,120 +30,98 @@ export const Header = ({ activeTab, setActiveTab }) => {
         <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 space-y-2 py-2">
           
           {/* Top Header Row */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 lg:gap-4">
             
             {/* Logo Brand + Sync Status */}
-            <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3 shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#E05A47] to-[#B83A28] flex items-center justify-center p-1.5 sm:p-2 shadow-md shadow-[#D95338]/20 border border-[#C84B31] shrink-0">
-                  <img src="/favicon.svg" alt="SocioSync Logo" className="w-5 h-5 sm:w-7 sm:h-7 object-contain drop-shadow-xs" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-display font-extrabold text-lg sm:text-2xl tracking-tight text-[#1C1B1A]">
-                      Socio<span className="text-[#D95338]">Sync</span>
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-[#6E685F] tracking-wide hidden sm:block font-medium">
-                    Ecosistema de Agendamiento, Minutas y Compromisos
-                  </p>
-                </div>
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl sm:rounded-2xl bg-gradient-to-br from-[#E05A47] to-[#B83A28] flex items-center justify-center p-1.5 sm:p-2 shadow-md shadow-[#D95338]/20 border border-[#C84B31] shrink-0">
+                <img src="/favicon.svg" alt="SocioSync Logo" className="w-5 h-5 sm:w-7 sm:h-7 object-contain drop-shadow-xs" />
               </div>
-
-              {/* Live Server Sync Timestamp Badge */}
-              <button 
-                onClick={manualSyncNow}
-                className="px-2 py-1 text-[9px] sm:text-[10px] font-mono tracking-wider font-bold bg-[#2E5A44]/10 text-[#2E5A44] border border-[#2E5A44]/25 rounded-lg flex items-center gap-1 shadow-2xs"
-                title={`Sincronización activa. Última actualización: ${lastSyncTime}. Toca para forzar refresco.`}
-              >
-                {syncStatus === 'syncing' ? (
-                  <RefreshCw className="w-3 h-3 animate-spin text-[#D95338]" />
-                ) : (
-                  <Wifi className="w-3 h-3 text-[#2E5A44]" />
-                )}
-                <span>{syncStatus === 'syncing' ? 'Guardando' : `Servidor: ${lastSyncTime}`}</span>
-              </button>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-display font-extrabold text-lg sm:text-2xl tracking-tight text-[#1C1B1A]">
+                    Socio<span className="text-[#D95338]">Sync</span>
+                  </span>
+                  {/* Live Status Indicator (Firebase) */}
+                  <div className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 bg-[#E6F0E9] border border-[#CDE0D4] rounded-md">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2E5A44] opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-[#2E5A44]"></span>
+                    </span>
+                    <span className="text-[9px] font-bold text-[#2E5A44] uppercase tracking-wider">Live</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-[#6E685F] tracking-wide hidden md:block font-medium">
+                  Ecosistema de Agendamiento, Minutas y Compromisos
+                </p>
+              </div>
             </div>
 
-            {/* Action Buttons (3-Column Grid on Mobile, Flex on Desktop) */}
+            {/* Action Buttons */}
             <div className="grid grid-cols-3 gap-1.5 sm:flex sm:items-center sm:gap-2 w-full sm:w-auto">
-              
               {/* QR Mobile Sync Button */}
               <button
                 onClick={() => setQrModalOpen(true)}
-                className="flex items-center justify-center gap-1 px-2 sm:px-3 py-2 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-[11px] sm:text-xs font-extrabold shadow-xs transition-all text-center w-full min-w-0"
+                className="flex items-center justify-center gap-1 px-2 sm:px-3 py-2 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-[11px] sm:text-xs font-extrabold shadow-xs transition-all text-center min-w-0"
                 title="Sincronizar o compartir código QR / Enlace"
               >
                 <QrCode className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Pasar QR</span>
+                <span className="truncate">Vincular</span>
               </button>
 
               {/* Workspace Switcher */}
               <button
                 onClick={() => setWorkspaceModalOpen(true)}
-                className="flex items-center justify-center gap-1 px-2 py-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-2xs text-center w-full min-w-0"
+                className="flex items-center justify-center gap-1 px-2 py-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-[11px] sm:text-xs font-bold transition-all shadow-2xs text-center min-w-0"
                 title="Cambiar de sesión o crear nuevo espacio para otro socio"
               >
                 <Layers className="w-3.5 h-3.5 text-[#D95338] shrink-0" />
                 <span className="capitalize font-extrabold truncate">{workspaceId.replace(/-/g, ' ')}</span>
-                <span className="text-[9px] text-[#6E685F] shrink-0">▾</span>
+                <span className="text-[9px] text-[#6E685F] shrink-0">▼</span>
               </button>
 
               {/* Lock Screen Button */}
               <button
                 onClick={lockWorkspace}
-                className="flex items-center justify-center gap-1 px-2 py-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#C84B31] border border-[#DFD8C8] rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center w-full min-w-0"
+                className="flex items-center justify-center gap-1 px-2 py-2 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#C84B31] border border-[#DFD8C8] rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center min-w-0"
                 title="Bloquear pantalla e ir al Login"
               >
                 <Lock className="w-3.5 h-3.5 shrink-0" />
                 <span className="font-bold truncate">Bloquear</span>
               </button>
-
             </div>
 
-            {/* Live Partner Radar (Desktop) */}
-            <div className="hidden lg:flex items-center gap-4 bg-[#F0EBE1] px-4 py-2 rounded-2xl border border-[#DFD8C8]">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#D95338] opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#D95338]"></span>
-                </span>
-                <span className="text-xs font-bold text-[#2D2A26] flex items-center gap-1.5">
+            {/* Right Group: Radar + Users */}
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto ml-auto justify-end">
+              
+              {/* Live Partner Radar (Desktop) */}
+              <div className="hidden lg:flex items-center gap-3 bg-[#F0EBE1] px-3 py-1.5 rounded-2xl border border-[#DFD8C8]">
+                <div className="flex items-center gap-1.5">
                   <Radio className="w-3.5 h-3.5 text-[#D95338]" />
-                  Daily Sync: <strong className="text-[#D95338] font-display text-sm">{formatTimeFormatted(activeMeeting?.time) || '10:00 AM'}</strong>
-                </span>
+                  <span className="text-[11px] font-bold text-[#2D2A26] uppercase">Sync:</span>
+                  <strong className="text-[#D95338] font-display text-xs">{formatTimeFormatted(activeMeeting?.time) || '10:00 AM'}</strong>
+                </div>
+
+                <a
+                  href={activeMeeting?.meetUrl || dailySchedule.meetUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 px-2.5 py-1 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-lg text-[11px] font-bold transition-all shadow-md shadow-[#D95338]/20"
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>Video</span>
+                </a>
               </div>
 
-              <a
-                href={activeMeeting?.meetUrl || dailySchedule.meetUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-[#D95338] hover:bg-[#C84B31] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#D95338]/20"
-              >
-                <Video className="w-3.5 h-3.5" />
-                <span>Entrar a Video</span>
-              </a>
-            </div>
-
-            {/* Desktop User Switcher */}
-            <div className="hidden sm:flex items-center gap-2">
-              <button
-                onClick={manualSyncNow}
-                className="px-3 py-1.5 bg-[#F0EBE1] hover:bg-[#E6E0D4] text-[#1C1B1A] border border-[#DFD8C8] rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
-                title="Sincronizar ahora"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${syncStatus === 'syncing' ? 'animate-spin text-[#D95338]' : ''}`} />
-                <span className="font-mono">Actualizar</span>
-              </button>
-
-              <div className="flex items-center bg-[#EFEAE1] p-1 rounded-2xl border border-[#DDD6C8]">
+              {/* Desktop User Switcher */}
+              <div className="hidden sm:flex items-center bg-[#EFEAE1] p-1 rounded-2xl border border-[#DDD6C8] overflow-x-auto">
                 {partners.map(p => {
                   const isActive = currentUser.id === p.id;
                   return (
                     <button
                       key={p.id}
                       onClick={() => switchUser(p.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                         isActive
                           ? 'bg-[#D95338] text-white shadow-xs'
                           : 'text-[#6E685F] hover:text-[#1C1B1A]'
@@ -156,7 +134,6 @@ export const Header = ({ activeTab, setActiveTab }) => {
                 })}
               </div>
             </div>
-
           </div>
 
           {/* Mobile Dedicated Full-Width Partner Switcher Row */}
