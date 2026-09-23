@@ -98,11 +98,32 @@ export const AppProvider = ({ children }) => {
     return (initWs.user && initWs.user.id) ? initWs.user : (initWs.partners?.[0] || DEFAULT_PARTNERS[0]);
   });
   const [dailySchedule, setDailySchedule] = useState(initWs.schedule);
-  const [meetings, setMeetings] = useState(initWs.meetings);
-  const [topics, setTopics] = useState(initWs.topics);
-  const [actionItems, setActionItems] = useState(initWs.actionItems);
-  const [ideas, setIdeas] = useState(initWs.ideas);
-  const [activeMeetingId, setActiveMeetingId] = useState(initWs.meetings[0]?.id || 'meet-initial');
+  
+  const [meetings, setMeetings] = useState(() => {
+    if (!initWs.meetings || initWs.meetings.length === 0) {
+      return [{
+        id: 'meet-initial',
+        title: 'Reunión Diaria',
+        date: new Date().toISOString().split('T')[0],
+        time: initWs.schedule?.defaultHour || '10:00',
+        duration: 45,
+        status: 'Programada',
+        notes: '',
+        meetUrl: initWs.schedule?.meetUrl || ''
+      }];
+    }
+    return initWs.meetings;
+  });
+
+  const [topics, setTopics] = useState(initWs.topics || []);
+  const [actionItems, setActionItems] = useState(initWs.actionItems || []);
+  const [ideas, setIdeas] = useState(initWs.ideas || []);
+  
+  const [activeMeetingId, setActiveMeetingId] = useState(() => {
+    return (initWs.meetings && initWs.meetings.length > 0) 
+      ? (initWs.meetings[0]?.id || 'meet-initial') 
+      : 'meet-initial';
+  });
 
   // ─── PIN / Lock state ───────────────────────────────────────────
   const [workspacePin, setWorkspacePinState] = useState(initWs.pin);
@@ -176,10 +197,26 @@ export const AppProvider = ({ children }) => {
       });
     }
     if (wsData.dailySchedule) setDailySchedule(wsData.dailySchedule);
+    
     if (wsData.meetings && wsData.meetings.length > 0) {
       setMeetings(wsData.meetings);
       setActiveMeetingId(wsData.meetings[0]?.id || 'meet-initial');
+    } else if (wsData.meetings && wsData.meetings.length === 0) {
+      // Prevent meetings from being completely empty
+      const fallbackMeeting = [{
+        id: 'meet-initial',
+        title: 'Reunión Diaria',
+        date: new Date().toISOString().split('T')[0],
+        time: wsData.dailySchedule?.defaultHour || '10:00',
+        duration: 45,
+        status: 'Programada',
+        notes: '',
+        meetUrl: wsData.dailySchedule?.meetUrl || ''
+      }];
+      setMeetings(fallbackMeeting);
+      setActiveMeetingId('meet-initial');
     }
+
     if (Array.isArray(wsData.topics)) setTopics(wsData.topics);
     if (Array.isArray(wsData.actionItems)) setActionItems(wsData.actionItems);
     if (Array.isArray(wsData.ideas)) setIdeas(wsData.ideas);
