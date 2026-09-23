@@ -82,18 +82,18 @@ export const WorkspaceModal = ({ isOpen, onClose }) => {
             <span className="text-xs font-bold text-[#1C1B1A]">Crear o Unirte a Otro Espacio</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
             <input
               type="text"
               required
               value={newWorkspaceName}
               onChange={(e) => setNewWorkspaceName(e.target.value)}
               placeholder="Ej: negocio-juan, startup-2..."
-              className="flex-1 bg-white border border-[#E6E0D4] rounded-xl px-3 py-2 text-xs text-[#1C1B1A] focus:outline-none focus:border-[#D95338]"
+              className="flex-1 bg-white border border-[#E6E0D4] rounded-xl px-4 py-2.5 text-xs text-[#1C1B1A] focus:outline-none focus:border-[#D95338] shadow-inner"
             />
             <button
               type="submit"
-              className="px-4 py-2 bg-[#D95338] hover:bg-[#C84B31] text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1"
+              className="px-5 py-2.5 bg-[#D95338] hover:bg-[#C84B31] text-white font-extrabold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5"
             >
               <span>Entrar</span>
               <ArrowRight className="w-3.5 h-3.5" />

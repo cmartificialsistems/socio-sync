@@ -87,34 +87,43 @@ export const MeetingScheduler = () => {
             )}
 
             {/* Quick Live Time Adjuster */}
-            <div className="pt-2 flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-2 bg-[#F5F2EB] px-4 py-2 rounded-2xl border border-[#E6E0D4]">
-                <Clock className="w-4 h-4 text-[#D95338]" />
-                <span className="text-xs text-[#6E685F]">Hora programada:</span>
-                <span className="font-display font-extrabold text-sm text-[#1C1B1A]">
-                  {formatTimeFormatted(activeMeeting?.time)}
-                </span>
-                <span className="text-[10px] text-[#6E685F]">({activeMeeting?.duration} min)</span>
+            <div className="pt-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full">
+              
+              <div className="flex items-center justify-between sm:justify-start gap-2 bg-[#F5F2EB] px-4 py-2.5 sm:py-2 rounded-2xl border border-[#E6E0D4] w-full sm:w-auto">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-[#D95338]" />
+                  <span className="text-xs text-[#6E685F]">Hora:</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-display font-extrabold text-sm text-[#1C1B1A]">
+                    {formatTimeFormatted(activeMeeting?.time)}
+                  </span>
+                  <span className="text-[10px] text-[#6E685F]">({activeMeeting?.duration}m)</span>
+                </div>
               </div>
 
               {/* Instant Time Shifters */}
-              <div className="flex items-center gap-1 bg-[#F5F2EB] p-1 rounded-2xl border border-[#E6E0D4]">
+              <div className="flex items-center justify-between sm:justify-start gap-1 bg-[#F5F2EB] p-1.5 sm:p-1 rounded-2xl border border-[#E6E0D4] w-full sm:w-auto">
                 <span className="text-[10px] uppercase font-mono text-[#6E685F] font-bold px-2 hidden sm:inline">Mover hoy:</span>
-                <button
-                  onClick={() => shiftMeetingTime(activeMeeting.id, -15)}
-                  className="px-2.5 py-1 text-[11px] font-mono font-bold bg-white hover:bg-[#EFEAE1] text-[#1C1B1A] rounded-xl border border-[#DFD8C8] shadow-sm"
-                  title="Restar 15 minutos"
-                >
-                  -15m
-                </button>
-                <button
-                  onClick={() => shiftMeetingTime(activeMeeting.id, 15)}
-                  className="px-2.5 py-1 text-[11px] font-mono font-bold bg-white hover:bg-[#EFEAE1] text-[#1C1B1A] rounded-xl border border-[#DFD8C8] shadow-sm"
-                  title="Sumar 15 minutos"
-                >
-                  +15m
-                </button>
+                
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                  <button
+                    onClick={() => shiftMeetingTime(activeMeeting.id, -15)}
+                    className="flex-1 sm:flex-none px-3 py-1.5 text-[11px] font-mono font-bold bg-white hover:bg-[#EFEAE1] text-[#1C1B1A] rounded-xl border border-[#DFD8C8] shadow-sm text-center"
+                    title="Restar 15 minutos"
+                  >
+                    -15m
+                  </button>
+                  <button
+                    onClick={() => shiftMeetingTime(activeMeeting.id, 15)}
+                    className="flex-1 sm:flex-none px-3 py-1.5 text-[11px] font-mono font-bold bg-white hover:bg-[#EFEAE1] text-[#1C1B1A] rounded-xl border border-[#DFD8C8] shadow-sm text-center"
+                    title="Sumar 15 minutos"
+                  >
+                    +15m
+                  </button>
+                </div>
               </div>
+
             </div>
 
           </div>
